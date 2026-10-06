@@ -873,3 +873,78 @@ def run_gemini_vlm(image_bytes, api_key):
         return structured_data
     except Exception as e:
         return {"error": f"Gemini API error: {str(e)}", "latency": time.time() - start_time}
+
+
+def run_roar_ai_vlm(image_bytes, api_key=None, model_name="gemini-3.8-flash"):
+    """
+    Executes VLM clinical analysis through Roar AI Gateway.
+    """
+    start_time = time.time()
+    roar_key = api_key or os.environ.get("ROAR_API_KEY")
+    roar_base = os.environ.get("ROAR_BASE_URL", "https://api.roar-ai.com/v1")
+
+    if not roar_key:
+        return {"error": "Roar AI API key not configured.", "latency": 0.0}
+
+    norm_bytes, mime_type = normalize_image_bytes(image_bytes)
+    base64_image = base64.b64encode(norm_bytes).decode('utf-8')
+
+    headers = {
+        "Authorization": f"Bearer {roar_key}",
+        "Content-Type": "application/json"
+    }
+
+    prompt = (
+        "You are an expert clinical pathologist analyzing a medical laboratory report.\n"
+        "Extract patient demographics (Patient_Name, Age, Gender) and all numeric biomarker values accurately.\n"
+        "Return ONLY a valid JSON object matching this schema:\n"
+        "{\n"
+        "  \"Patient_Name\": \"string or null\",\n"
+        "  \"Age\": int or null,\n"
+        "  \"Gender\": \"Male\" | \"Female\" | null,\n"
+        "  \"Hemoglobin\": float or null,\n"
+        "  \"WBC\": float or null,\n"
+        "  \"Platelets\": int or null,\n"
+        "  \"Fasting_Blood_Sugar\": int or null,\n"
+        "  \"Creatinine\": float or null,\n"
+        "  \"TSH\": float or null,\n"
+        "  \"Cholesterol\": int or null,\n"
+        "  \"Ionized_Calcium\": float or null,\n"
+        "  \"Calcium\": float or null,\n"
+        "  \"GGT\": float or null,\n"
+        "  \"Albumin\": float or null,\n"
+        "  \"AG_Ratio\": float or null,\n"
+        "  \"Total_Protein\": float or null,\n"
+        "  \"Clinical_Interpretation\": \"concise calibrated clinical summary\",\n"
+        "  \"Predicted_Diseases\": []\n"
+        "}"
+    )
+
+    payload = {
+        "model": model_name,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}}
+                ]
+            }
+        ],
+        "max_tokens": 800,
+        "temperature": 0.1
+    }
+
+    try:
+        response = requests.post(f"{roar_base}/chat/completions", headers=headers, json=payload, timeout=60)
+        latency = time.time() - start_time
+        if response.status_code != 200:
+            return {"error": f"Roar AI error ({response.status_code}): {response.text[:200]}", "latency": latency}
+        res_data = response.json()
+        raw_text = res_data['choices'][0]['message']['content'].strip()
+        structured_data = parse_vlm_json_response(raw_text)
+        structured_data["latency"] = latency
+        return structured_data
+    except Exception as e:
+        return {"error": f"Roar AI VLM error: {str(e)}", "latency": time.time() - start_time}
+
