@@ -34,9 +34,11 @@ from ocr_engine import (
     run_ml_classifier,
     run_nvidia_nim_vlm,
     run_gemini_vlm,
+    run_roar_ai_vlm,
     load_local_classifier,
     get_easyocr_reader
 )
+
 from clinical_risk_engine import compute_comprehensive_risk_profile
 from clinical_validator import compute_validated_ensemble
 
@@ -461,19 +463,27 @@ async def analyze_report(
         )
 
 
-        # 6 & 7. Run NVIDIA NIM and Gemini 2.5 Flash concurrently in parallel
+        eff_roar = os.environ.get("ROAR_API_KEY", "").strip()
+
+        # 6 & 7. Run Cloud VLMs (NVIDIA NIM / Gemini / Roar AI Gateway) in parallel
         import concurrent.futures
         
         def call_nvidia():
             if eff_nvidia:
                 print(f"[{current_doctor.slmc_number}] Triggering NVIDIA NIM (Llama 3.2 Vision)...")
                 return run_nvidia_nim_vlm(image_bytes, eff_nvidia)
+            elif eff_roar:
+                print(f"[{current_doctor.slmc_number}] Triggering Roar AI Gateway (Llama 3.3)...")
+                return run_roar_ai_vlm(image_bytes, eff_roar, model_name="llama-3.3-70b")
             return {"error": "No NVIDIA API key configured. Add it in API Settings.", "latency": 0.0}
 
         def call_gemini():
             if eff_gemini:
                 print(f"[{current_doctor.slmc_number}] Triggering Gemini 2.5 Flash...")
                 return run_gemini_vlm(image_bytes, eff_gemini)
+            elif eff_roar:
+                print(f"[{current_doctor.slmc_number}] Triggering Roar AI Gateway (Gemini 3.8 Flash)...")
+                return run_roar_ai_vlm(image_bytes, eff_roar, model_name="gemini-3.8-flash")
             return {"error": "No Gemini API key configured. Add it in API Settings.", "latency": 0.0}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
@@ -481,6 +491,7 @@ async def analyze_report(
             fut_gem = executor.submit(call_gemini)
             m3_raw = fut_nim.result()
             m4_raw = fut_gem.result()
+
 
         # Normalize m3 / m4 to common shape
         def normalize_vlm(raw: dict, name: str, fallback_rule_diag: str) -> dict:

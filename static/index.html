@@ -258,13 +258,13 @@
                         <input type="file" id="report-file-input" accept="image/*,.pdf" style="display:none">
                         <label class="dropzone spatial-3d" id="report-dropzone" for="report-file-input">
                             <div class="scanning-beam"></div>
-                            <div class="doc-sheet-3d">
+                            <div class="doc-sheet-3d" id="dropzone-doc-sheet">
                                 <div class="doc-sheet-line cyan"></div>
                                 <div class="doc-sheet-line"></div>
                                 <div class="doc-sheet-line blue"></div>
                                 <div class="doc-sheet-line"></div>
                             </div>
-                            <div class="dropzone-content">
+                            <div class="dropzone-content" id="dropzone-default-content">
                                 <p class="dropzone-title">DROP LAB REPORT</p>
                                 <p class="dropzone-sub">or click to browse files · PNG • JPG • PDF · Max 25 MB</p>
                                 <div class="dropzone-formats">
@@ -273,7 +273,16 @@
                                     <span>💊 Thyroid Panels</span>
                                 </div>
                             </div>
+                            <div class="dropzone-preview-container hidden" id="dropzone-preview-box">
+                                <img id="dropzone-preview-img" class="dropzone-preview-thumb" alt="Uploaded Lab Report">
+                                <div class="dropzone-preview-info">
+                                    <span class="preview-badge">✅ REPORT LOADED</span>
+                                    <span class="preview-filename" id="dropzone-preview-filename">Uploaded_Lab_Report.png</span>
+                                    <span class="preview-sub">Click to select another report</span>
+                                </div>
+                            </div>
                         </label>
+
                         <div class="upload-status" id="upload-status"></div>
 
                         <!-- Main Illuminated 3D Action CTA Button -->

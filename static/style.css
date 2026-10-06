@@ -821,24 +821,75 @@ input, select, textarea { font-family: inherit; color: var(--text-1); }
 .dropzone.spatial-3d {
     perspective: 1000px;
     position: relative;
-    border: 1.5px dashed rgba(34, 211, 238, 0.25);
-    background: rgba(10, 16, 32, 0.55);
+    border: 1.5px dashed rgba(34, 211, 238, 0.3);
+    background: rgba(10, 16, 32, 0.65);
     border-radius: var(--radius-lg);
-    padding: 32px 20px;
+    padding: 20px 16px;
     text-align: center;
     cursor: pointer;
     transition: var(--transition);
     overflow: hidden;
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 .dropzone.spatial-3d:hover, .dropzone.spatial-3d.dragover {
     border-color: var(--cyan);
-    background: rgba(34, 211, 238, 0.06);
+    background: rgba(34, 211, 238, 0.08);
     box-shadow: 0 0 35px rgba(34, 211, 238, 0.18), inset 0 0 20px rgba(34, 211, 238, 0.05);
     transform: translateY(-2px);
 }
+.dropzone-preview-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 4px;
+}
+.dropzone-preview-thumb {
+    max-height: 120px;
+    max-width: 100%;
+    object-fit: contain;
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--cyan);
+    box-shadow: 0 8px 24px rgba(34, 211, 238, 0.25);
+    background: #000;
+}
+.dropzone-preview-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.preview-badge {
+    font-size: 10.5px;
+    font-weight: 800;
+    color: var(--emerald);
+    background: rgba(52, 211, 153, 0.12);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    padding: 2px 10px;
+    border-radius: 12px;
+}
+.preview-filename {
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.preview-sub {
+    font-size: 10.5px;
+    color: var(--text-3);
+}
+
 .doc-sheet-3d {
-    width: 60px; height: 74px;
-    margin: 0 auto 14px;
+    width: 52px; height: 64px;
+    margin: 0 auto 10px;
     background: linear-gradient(145deg, #1e293b, #0f172a);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 6px;
@@ -848,7 +899,7 @@ input, select, textarea { font-family: inherit; color: var(--text-1); }
     display: flex;
     flex-direction: column;
     justify-content: space-around;
-    padding: 10px 8px;
+    padding: 8px 6px;
     position: relative;
 }
 .dropzone.spatial-3d:hover .doc-sheet-3d {
@@ -857,7 +908,8 @@ input, select, textarea { font-family: inherit; color: var(--text-1); }
     border-color: var(--cyan);
 }
 .doc-sheet-line {
-    height: 4px; border-radius: 2px;
+    height: 3.5px; border-radius: 2px;
+
     background: rgba(255, 255, 255, 0.2);
 }
 .doc-sheet-line.cyan { background: var(--cyan); width: 60%; }

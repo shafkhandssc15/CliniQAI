@@ -72,17 +72,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (DOCTOR_INFO) {
         const docCard = document.getElementById("doctor-info-card");
         if (docCard) docCard.style.display = "block";
+        const cleanDocName = (DOCTOR_INFO.full_name || "Doctor").replace(/^Dr\.\s*/i, "");
         setText("sidebar-doctor-name", DOCTOR_INFO.full_name || "Doctor");
         setText("sidebar-doctor-slmc", DOCTOR_INFO.slmc_number || "");
         const av = document.getElementById("sidebar-doc-avatar");
         if (av) {
-            const n = (DOCTOR_INFO.full_name || "D").trim();
+            const n = cleanDocName.trim();
             av.textContent = n.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 2) || "D";
         }
         const hdr = document.getElementById("header-doctor-name");
-        if (hdr) { hdr.textContent = `Dr. ${DOCTOR_INFO.full_name}`; hdr.style.display = "flex"; }
-        setText("review-sig-name", `${DOCTOR_INFO.full_name} · ${DOCTOR_INFO.slmc_number}`);
+        if (hdr) { hdr.textContent = `Dr. ${cleanDocName}`; hdr.style.display = "flex"; }
+        setText("review-sig-name", `Dr. ${cleanDocName} · ${DOCTOR_INFO.slmc_number}`);
     }
+
 
     // Set default report date to today (respecting local timezone offset)
     const dateEl = document.getElementById("pt-date");
@@ -1831,6 +1833,21 @@ function updateReportPreviewElements(url, filename) {
     currentReportPreviewUrl = url;
     if (filename) currentReportFileName = filename;
 
+    // Dropzone Thumbnail Preview in Upload Card
+    const dropzoneDefault = document.getElementById("dropzone-default-content");
+    const dropzoneSheet = document.getElementById("dropzone-doc-sheet");
+    const dropzonePreviewBox = document.getElementById("dropzone-preview-box");
+    const dropzonePreviewImg = document.getElementById("dropzone-preview-img");
+    const dropzoneFilenameEl = document.getElementById("dropzone-preview-filename");
+
+    if (dropzonePreviewBox && dropzonePreviewImg) {
+        dropzonePreviewImg.src = url;
+        if (dropzoneFilenameEl) dropzoneFilenameEl.textContent = currentReportFileName;
+        if (dropzoneDefault) dropzoneDefault.classList.add("hidden");
+        if (dropzoneSheet) dropzoneSheet.classList.add("hidden");
+        dropzonePreviewBox.classList.remove("hidden");
+    }
+
     const inlineCard = document.getElementById("original-report-card");
     const inlineImg = document.getElementById("report-inline-img");
     const filenameEl = document.getElementById("report-card-filename");
@@ -1865,6 +1882,7 @@ function updateReportPreviewElements(url, filename) {
             inlineImg.src = url;
         }
     }
+
 
     if (downloadEl) {
         downloadEl.href = url;
