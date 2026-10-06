@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CliniQ AI — Doctor Login</title>
+    <meta name="description" content="Secure login portal for SLMC-registered doctors on the CliniQ AI Medical Diagnostic Platform.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="/static/clinical_3d.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-deep:      #050d1a;
+            --bg-panel:     #0c1829;
+            --bg-card:      #111f35;
+            --border:       rgba(6,182,212,0.15);
+            --accent:       #06b6d4;
+            --accent-light: #67e8f9;
+            --accent-dark:  #0891b2;
+            --success:      #10b981;
+            --danger:       #ef4444;
+            --warning:      #f59e0b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted:   #64748b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* Background mesh */
+        body::before {
+            content: '';
+            position: fixed; inset: 0;
+            background:
+                radial-gradient(ellipse 60% 50% at 20% 10%, rgba(6,182,212,0.12) 0%, transparent 70%),
+                radial-gradient(ellipse 50% 40% at 80% 80%, rgba(99,102,241,0.10) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .login-container {
+            position: relative;
+            width: 100%;
+            max-width: 460px;
+            width: 100%;
+            max-width: 440px;
+            animation: fadeUp 0.6s ease;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo-area {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .logo-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 12px;
+            box-shadow: 0 8px 24px rgba(0, 210, 255, 0.25);
+            overflow: hidden;
+        }
+
+        .logo-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .logo-area h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-area h1 span { color: var(--accent); }
+
+        .logo-area p {
+            font-size: 0.875rem; color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 36px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+        }
+
+        .card h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.4rem; font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .card .subtitle {
+            font-size: 0.85rem; color: var(--text-secondary);
+            margin-bottom: 28px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem; font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+
+        input {
+            width: 100%;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(6,182,212,0.15);
+        }
+
+        input::placeholder { color: var(--text-muted); }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+            border: none; border-radius: 10px;
+            font-size: 1rem; font-weight: 700;
+            font-family: 'Outfit', sans-serif;
+            color: white; cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s, box-shadow 0.2s;
+            box-shadow: 0 4px 20px rgba(6,182,212,0.3);
+            margin-top: 8px;
+        }
+
+        .btn-primary:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 6px 28px rgba(6,182,212,0.4); }
+        .btn-primary:active { transform: translateY(0); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.error   { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+        .alert.success { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
+        .alert.info    { background: rgba(6,182,212,0.12); border: 1px solid rgba(6,182,212,0.3); color: var(--accent-light); }
+        .alert.show    { display: block; }
+
+        .card-footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .card-footer a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .card-footer a:hover { text-decoration: underline; }
+
+        .slmc-badge {
+            display: inline-block;
+            background: rgba(16,185,129,0.1);
+            border: 1px solid rgba(16,185,129,0.25);
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 0.75rem; font-weight: 600;
+            color: #6ee7b7;
+            margin-bottom: 20px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 18px; height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle; margin-right: 8px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo-area">
+            <div class="logo-icon">
+                <img src="/static/Logo.png" alt="CliniQ AI Logo" class="brand-logo-img">
+            </div>
+            <h1>CliniQ <span>AI</span></h1>
+            <p>Clinical Decision Suite for Sri Lankan Healthcare</p>
+        </div>
+
+        <div class="card">
+            <div class="slmc-badge">🏥 SLMC Registered Doctors Only</div>
+            <h2>Welcome Back, Doctor</h2>
+            <p class="subtitle">Sign in to access the diagnostic platform</p>
+
+            <div class="alert" id="login-alert"></div>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" placeholder="your@email.com" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn-primary" id="login-btn">Sign In</button>
+            </form>
+
+            <div class="card-footer">
+                Not registered yet? <a href="/register.html">Apply for Access</a>
+                &nbsp;|&nbsp;
+                <a href="/admin.html" style="color: var(--text-muted); font-weight: 500;">Admin Panel</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Redirect if already logged in
+        if (localStorage.getItem("cliniq_token")) {
+            window.location.href = "/";
+        }
+
+        const form = document.getElementById("login-form");
+        const alert = document.getElementById("login-alert");
+        const btn   = document.getElementById("login-btn");
+
+        function showAlert(msg, type = "error") {
+            alert.textContent = msg;
+            alert.className = `alert ${type} show`;
+        }
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>Signing in...';
+            alert.className = "alert";
+
+            const email    = document.getElementById("email").value.trim();
+            const password = document.getElementById("password").value;
+
+            try {
+                const res = await fetch("/api/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    localStorage.setItem("cliniq_token", data.access_token);
+                    localStorage.setItem("cliniq_doctor", JSON.stringify(data.doctor));
+                    showAlert("Login successful! Redirecting...", "success");
+                    setTimeout(() => window.location.href = "/", 800);
+                } else {
+                    const detail = data.detail;
+                    const msg = typeof detail === "object" ? detail.message : detail;
+                    showAlert(msg || "Login failed. Please check your credentials.");
+                    btn.disabled = false;
+                    btn.textContent = "Sign In";
+                }
+            } catch (err) {
+                showAlert("Network error. Please ensure the server is running.");
+                btn.disabled = false;
+                btn.textContent = "Sign In";
+            }
+        });
+    </script>
+</body>
+</html>

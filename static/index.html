@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CliniQ AI — Clinical Dashboard</title>
+    <meta name="description" content="AI-powered lab report analysis for SLMC-registered doctors in Sri Lanka.">
+    <link rel="icon" type="image/png" href="/static/Logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="/static/clinical_3d.js"></script>
+</head>
+<body class="dark-mode">
+<div class="app-container">
+
+    <!-- ══════════════════ SIDEBAR ══════════════════ -->
+    <aside class="sidebar" id="app-sidebar">
+        <div class="logo-area">
+            <div class="logo-icon">
+                <img src="/static/Logo.png" alt="CliniQ AI Logo" class="brand-logo-img">
+                <div class="logo-pulse-ring"></div>
+            </div>
+            <div class="logo-text">
+                <h1>CliniQ <span>AI</span></h1>
+                <p>Clinical Intelligence Platform</p>
+            </div>
+            <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleSidebar()" title="Collapse / Expand Sidebar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+        </div>
+
+        <nav class="nav-links">
+            <button class="nav-item active" data-tab="dashboard" title="Clinical Dashboard (Intake & Analysis)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <span>Dashboard</span>
+            </button>
+            <button class="nav-item" data-tab="history" title="Session Report History & Records">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                <span>Report History</span>
+                <span class="nav-badge" id="history-count">0</span>
+            </button>
+            <button class="nav-item" data-tab="biomarkers" title="Extracted Biomarker Clinical Profiles">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                <span>Biomarker Profile</span>
+            </button>
+            <button class="nav-item" data-tab="comparison" title="4-Model Engine Consensus Comparison">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                <span>Model Comparison</span>
+            </button>
+            <button class="nav-item" data-tab="benchmarks" title="Classifier Performance Metrics & Validation">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                <span>Classifier Metrics</span>
+            </button>
+            <!-- Hidden API Settings Nav Link (Kept hidden from standard doctor sidebar) -->
+            <button class="nav-item" data-tab="settings" id="nav-item-settings" style="display: none;" title="Cloud API & Supabase Infrastructure Settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>API Settings</span>
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="status-indicator online">
+                <span class="dot"></span>
+                <span>Local Models: Ready</span>
+            </div>
+            <div class="doctor-info-card" id="doctor-info-card">
+                <div class="doc-avatar-row">
+                    <div class="doc-avatar" id="sidebar-doc-avatar">D</div>
+                    <div class="doc-text">
+                        <div class="doc-label">Logged In As</div>
+                        <div class="doc-name" id="sidebar-doctor-name">—</div>
+                        <div class="doc-slmc" id="sidebar-doctor-slmc">—</div>
+                    </div>
+                    <button type="button" class="btn-discrete-settings" onclick="switchTab('settings')" title="API & Cloud Infrastructure Settings">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    </button>
+                </div>
+                <button type="button" class="btn-signout" onclick="doLogout()" title="Sign Out of CliniQ AI">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <span>Sign Out</span>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ══════════════════ MAIN ══════════════════ -->
+    <main class="main-content">
+
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <div class="header-left">
+                <button type="button" class="topbar-sidebar-toggle" id="topbar-sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><path d="m14 9-3 3 3 3"></path></svg>
+                </button>
+                <div class="header-titles">
+                    <h2 id="tab-title">Clinical Intelligence</h2>
+                    <p class="subtitle" id="tab-subtitle">AI-assisted laboratory interpretation &amp; clinical decision support</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <span id="supabase-key-badge" class="badge badge-inactive" onclick="switchTab('settings')" style="cursor:pointer;" title="Supabase Cloud Database Connection (Click to configure)">
+                    <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#10b981;box-shadow:0 0 8px #10b981;"></span>
+                    SUPABASE ● LIVE <span style="font-size:10px;opacity:0.8;font-family:'JetBrains Mono',monospace;">42ms</span>
+                </span>
+                <span id="nvidia-key-badge" class="badge badge-inactive" onclick="switchTab('settings')" style="cursor:pointer;" title="NVIDIA NIM Vision (Click to configure)">
+                    <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22d3ee;box-shadow:0 0 8px #22d3ee;"></span>
+                    NVIDIA NIM ● READY
+                </span>
+                <span id="gemini-key-badge" class="badge badge-inactive" onclick="switchTab('settings')" style="cursor:pointer;" title="Google Gemini 2.5 (Click to configure)">
+                    <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#818cf8;box-shadow:0 0 8px #818cf8;"></span>
+                    GEMINI ● READY
+                </span>
+                <div class="doctor-chip" id="header-doctor-name">
+                    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#34d399;box-shadow:0 0 8px #34d399;"></span>
+                    <span>Dr. Silva • SLMC Verified</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- ─── TAB: DASHBOARD ─── -->
+        <section id="tab-dashboard" class="tab-pane active">
+
+            <!-- Signature Visual Flow Identity -->
+            <div class="clinical-flow-banner">
+                <div class="flow-step"><span class="flow-icon">📄</span><span class="flow-text">Report</span></div>
+                <div class="flow-connector"><div class="flow-pulse-line"></div></div>
+                <div class="flow-step"><span class="flow-icon">⚡</span><span class="flow-text">OCR &amp; Extraction</span></div>
+                <div class="flow-connector"><div class="flow-pulse-line"></div></div>
+                <div class="flow-step active"><span class="flow-icon">🧠</span><span class="flow-text">4 AI Diagnostic Engines</span></div>
+                <div class="flow-connector"><div class="flow-pulse-line"></div></div>
+                <div class="flow-step core-step"><span class="flow-icon">🔮</span><span class="flow-text">Consensus Core</span></div>
+                <div class="flow-connector"><div class="flow-pulse-line"></div></div>
+                <div class="flow-step"><span class="flow-icon">📊</span><span class="flow-text">Clinical Findings</span></div>
+                <div class="flow-connector"><div class="flow-pulse-line"></div></div>
+                <div class="flow-step"><span class="flow-icon">👨‍⚕️</span><span class="flow-text">Physician Approval</span></div>
+            </div>
+
+            <!-- Hero Experience Panel with 3D Consensus Core -->
+            <div class="hero-intelligence-panel">
+                <div class="hero-left">
+                    <div class="hero-badge">
+                        <span class="hero-pulse-dot"></span>
+                        <span>CLINICAL AI WORKSTATION • SLMC VALIDATED</span>
+                    </div>
+                    <h2 class="hero-title">Clinical Intelligence &amp; Multi-Engine Consensus</h2>
+                    <p class="hero-subtitle">Upload laboratory reports for instant parallel analysis across deterministic rules, local ML classifiers, NVIDIA NIM Vision, and Gemini multimodal reasoning.</p>
+                    
+                    <div class="ai-waveform-container">
+                        <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+                        <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+                        <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+                        <span class="waveform-label">Consensus Core: Active &amp; Synchronized</span>
+                    </div>
+
+                    <div class="sample-reports-bar">
+                        <span class="samples-title">Quick Clinical Tests:</span>
+                        <button type="button" class="btn-sample-chip" onclick="loadSampleCase('anemia')">
+                            <span>🩸 Iron Deficiency Anaemia</span>
+                        </button>
+                        <button type="button" class="btn-sample-chip" onclick="loadSampleCase('dengue')">
+                            <span>🔬 Dengue Thrombocytopenia</span>
+                        </button>
+                        <button type="button" class="btn-sample-chip" onclick="loadSampleCase('metabolic')">
+                            <span>🧪 Type 2 Diabetes / Dyslipidemia</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="hero-right">
+                    <div class="neural-core-wrapper" title="Interactive 3D Consensus Core: Move cursor to rotate">
+                        <canvas id="neural-core-canvas" width="280" height="220"></canvas>
+                        <div class="neural-core-overlay">
+                            <span class="core-tag">Consensus Core</span>
+                            <span class="core-sub">4 Engines Synchronized</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+
+                <!-- LEFT COLUMN: Intake + Upload -->
+                <div class="grid-left">
+
+                    <!-- Patient Intake Form -->
+                    <div class="card glass intake-card">
+                        <div class="card-header-row">
+                            <h3>Patient Information</h3>
+                            <span class="card-badge">Required</span>
+                        </div>
+                        <div class="intake-form">
+                            <div class="form-row-2">
+                                <div class="fgroup">
+                                    <label>Patient Name / Initials</label>
+                                    <input type="text" id="pt-name" placeholder="e.g. K.R. Perera" maxlength="60">
+                                </div>
+                                <div class="fgroup">
+                                    <label>Age <span class="req">*</span></label>
+                                    <input type="number" id="pt-age" placeholder="Years" min="1" max="120">
+                                </div>
+                            </div>
+                            <div class="form-row-2">
+                                <div class="fgroup">
+                                    <label>Gender <span class="req">*</span></label>
+                                    <select id="pt-gender">
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="fgroup">
+                                    <label>Report Type</label>
+                                    <select id="pt-report-type">
+                                        <option value="Full Blood Count">Full Blood Count</option>
+                                        <option value="Lipid Panel">Lipid Panel</option>
+                                        <option value="Thyroid Function">Thyroid Function</option>
+                                        <option value="Renal Function">Renal Function</option>
+                                        <option value="Comprehensive Metabolic">Comprehensive Metabolic</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row-2">
+                                <div class="fgroup">
+                                    <label>Report Date</label>
+                                    <input type="date" id="pt-date">
+                                </div>
+                                <div class="fgroup">
+                                    <label>Active Symptoms</label>
+                                    <input type="text" id="pt-symptoms" placeholder="e.g. Fatigue, Chest pain, Polyuria, Dizziness" maxlength="120">
+                                </div>
+                            </div>
+                            <div class="form-row-2">
+                                <div class="fgroup">
+                                    <label>Current Medications</label>
+                                    <input type="text" id="pt-medications" placeholder="e.g. Metformin, Statin, Losartan, Thyroxine" maxlength="120">
+                                </div>
+                                <div class="fgroup">
+                                    <label>Lifestyle &amp; Risk Factors</label>
+                                    <input type="text" id="pt-lifestyle" placeholder="e.g. Smoker, Sedentary, Family CAD" maxlength="120">
+                                </div>
+                            </div>
+                            <div class="fgroup" style="margin-top: 10px;">
+                                <label>Clinical Notes</label>
+                                <input type="text" id="pt-notes" placeholder="Optional clinical observations..." maxlength="200">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3D Upload Dropzone -->
+                    <div class="card glass upload-card">
+                        <div class="card-header-row">
+                            <h3>Upload Lab Report</h3>
+                            <span class="card-badge success">PNG · JPG · PDF</span>
+                        </div>
+                        <input type="file" id="report-file-input" accept="image/*,.pdf" style="display:none">
+                        <label class="dropzone spatial-3d" id="report-dropzone" for="report-file-input">
+                            <div class="scanning-beam"></div>
+                            <div class="doc-sheet-3d">
+                                <div class="doc-sheet-line cyan"></div>
+                                <div class="doc-sheet-line"></div>
+                                <div class="doc-sheet-line blue"></div>
+                                <div class="doc-sheet-line"></div>
+                            </div>
+                            <div class="dropzone-content">
+                                <p class="dropzone-title">DROP LAB REPORT</p>
+                                <p class="dropzone-sub">or click to browse files · PNG • JPG • PDF · Max 25 MB</p>
+                                <div class="dropzone-formats">
+                                    <span>🔬 Blood Reports</span>
+                                    <span>🧪 Metabolic Panels</span>
+                                    <span>💊 Thyroid Panels</span>
+                                </div>
+                            </div>
+                        </label>
+                        <div class="upload-status" id="upload-status"></div>
+
+                        <!-- Main Illuminated 3D Action CTA Button -->
+                        <button class="btn-cta-analyze" id="btn-run-analysis" type="button" onclick="submitAnalysis()">
+                            <span>RUN 4-ENGINE ANALYSIS</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                </div>
+
+
+                <!-- RIGHT COLUMN: Results -->
+                <div class="grid-right">
+
+                    <!-- Placeholder -->
+                    <div class="card glass welcome-card" id="analysis-placeholder">
+                        <div class="welcome-content">
+                            <div class="pulse-ring">
+                                <div class="pulse-icon">✚</div>
+                            </div>
+                            <h3>Awaiting Lab Report</h3>
+                            <p>Fill in patient demographics on the left, upload a laboratory report sheet, then click <strong>"RUN 4-ENGINE ANALYSIS"</strong> to execute multi-engine clinical consensus.</p>
+                            <div class="model-badges-preview">
+                                <span class="mbadge local">EasyOCR Rules</span>
+                                <span class="mbadge local">XGBoost ML</span>
+                                <span class="mbadge cloud">NVIDIA NIM</span>
+                                <span class="mbadge cloud">Gemini 2.5</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 5-Phase Cinematic Analysis Sequencer -->
+                    <div class="card glass loading-card hidden" id="analysis-loading">
+                        <div class="cinematic-analysis-box">
+                            <div class="seq-radar-scanner">
+                                <div class="seq-radar-sweep"></div>
+                                <div class="seq-radar-core"></div>
+                            </div>
+                            <h3 id="seq-phase-title">Phase 1: DOCUMENT SCAN</h3>
+                            <p id="seq-phase-desc">Scanning high-resolution morphology &amp; technical grid...</p>
+                            <div class="seq-progress-bar">
+                                <div class="seq-progress-fill" id="seq-progress-fill" style="width: 20%;"></div>
+                            </div>
+                            <div class="seq-nodes-row">
+                                <div class="seq-node active" id="seq-node-rule"><span class="node-dot"></span><span>Rule Engine</span></div>
+                                <div class="seq-node" id="seq-node-ml"><span class="node-dot"></span><span>Local ML</span></div>
+                                <div class="seq-node" id="seq-node-nv"><span class="node-dot"></span><span>NVIDIA Vision</span></div>
+                                <div class="seq-node" id="seq-node-gem"><span class="node-dot"></span><span>Gemini</span></div>
+                            </div>
+                            <div class="seq-telemetry-tags" id="seq-telemetry-tags">
+                                <span>Hb: Extracting...</span>
+                                <span>MCV: Calculating...</span>
+                                <span>Consensus: Standby</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results Panel -->
+                    <div class="analysis-results-container hidden" id="analysis-results">
+
+                        <!-- Patient + Doctor Header Banner -->
+                        <div class="card glass patient-banner">
+                            <div class="banner-left">
+                                <div class="banner-avatar" id="banner-avatar">P</div>
+                                <div class="banner-details">
+                                    <h3 id="banner-patient-name">Patient Profile</h3>
+                                    <div class="banner-meta">
+                                        <span id="banner-age-gender"></span>
+                                        <span class="sep">·</span>
+                                        <span id="banner-report-type"></span>
+                                        <span class="sep">·</span>
+                                        <span id="banner-ref"></span>
+                                    </div>
+                                    <div class="banner-doctor" id="banner-doctor"></div>
+                                </div>
+                            </div>
+                            <div class="banner-actions">
+                                <button class="btn-action-outline" id="btn-view-doc-banner" onclick="openReportModal()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    <span>View Original Lab Report</span>
+                                </button>
+                                <button class="btn-action" id="btn-print" onclick="preparePrintView(); window.print()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
+                                    Print Report
+                                </button>
+                                <button class="btn-action-outline" onclick="resetToUpload()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                                    New Report
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Original Uploaded Lab Report Card (Interactive In-Place Inspection) -->
+                        <div class="card glass original-report-card" id="original-report-card">
+                            <div class="section-title-row">
+                                <div class="title-with-icon" style="display:flex; align-items:center; gap:8px;">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;color:var(--cyan);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                    <h3 style="margin:0; font-size:1rem; font-weight:700;">Uploaded Lab Report Document</h3>
+                                    <span class="report-filename-badge" id="report-card-filename">lab_report.png</span>
+                                </div>
+                                <div class="report-card-actions" style="display:flex; gap:8px;">
+                                    <button class="btn-sm-action" onclick="toggleReportInlinePreview()" id="btn-toggle-inline-preview" title="Toggle Report Preview Visibility">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                        <span id="btn-toggle-preview-text">Hide Preview</span>
+                                    </button>
+                                    <button class="btn-sm-action primary" onclick="openReportModal()" title="Full Zoom & Inspection Lightbox">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                                        <span>Full Zoom & Pan</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="report-inline-container" id="report-inline-container">
+                                <div class="report-inline-frame" onclick="openReportModal()" title="Click to open Full-Screen Zoom & Pan Lightbox">
+                                    <img id="report-inline-img" src="" alt="Uploaded Lab Report" class="report-inline-img">
+                                    <div class="report-hover-overlay">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                                        <span>Click for Full Zoom, Pan & Rotation Lightbox</span>
+                                    </div>
+                                </div>
+                                <div class="report-inline-meta">
+                                    <span class="meta-label">Source Document:</span>
+                                    <span id="report-inline-source-text" class="meta-val">Verified against EasyOCR + VLM multimodal feature extractions.</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Primary Diagnosis + Confidence -->
+                        <div class="results-dual-row">
+
+                            <!-- Primary Diagnosis Card -->
+                            <div class="card glass diagnosis-main-card">
+                                <div class="dx-label">Primary Diagnosis</div>
+                                <div class="dx-pill" id="dx-pill">—</div>
+                                <div class="dx-source" id="dx-source">Ensemble of 4 AI Models</div>
+                                <div class="dx-narrative" id="dx-narrative">Loading interpretation...</div>
+                            </div>
+
+                            <!-- Confidence Gauge Card -->
+                            <div class="card glass confidence-card">
+                                <div class="dx-label">Ensemble Confidence</div>
+                                <div class="gauge-container">
+                                    <svg class="gauge-svg" viewBox="0 0 200 120" id="gauge-svg">
+                                        <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="14" stroke-linecap="round"/>
+                                        <path id="gauge-arc" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#10b981" stroke-width="14" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="251.2" style="transition: stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1), stroke 0.5s ease"/>
+                                        <text x="100" y="90" text-anchor="middle" font-family="Outfit,sans-serif" font-size="28" font-weight="800" fill="white" id="gauge-pct">—%</text>
+                                        <text x="100" y="112" text-anchor="middle" font-family="Inter,sans-serif" font-size="11" fill="#94a3b8" id="gauge-band">Computing...</text>
+                                    </svg>
+                                </div>
+                                <!-- Mini vote bars -->
+                                <div class="vote-bars" id="vote-bars"></div>
+                            </div>
+                        </div>
+
+                        <!-- Safety Disclaimer -->
+                        <div class="safety-disclaimer hidden" id="safety-disclaimer">
+                            ⚠ Clinical decision support disclaimer loading...
+                        </div>
+
+                        <!-- Safety Flags (confidence relabelling notices) -->
+                        <div class="safety-flags hidden" id="safety-flags"></div>
+
+                        <!-- Clinical Findings / Borderline / Cautions -->
+                        <div class="card glass arbitration-card hidden" id="arbitration-card">
+                            <div class="section-title-row">
+                                <h3>⚖ Model Disagreement & Consensus Arbitration</h3>
+                                <span class="card-badge warning">Active Arbitration</span>
+                            </div>
+                            <div class="arbitration-list" id="arbitration-list"></div>
+                        </div>
+
+                        <!-- Multi-Tier Biomarker Severity Classification Grid -->
+                        <div class="card glass biomarker-severities-card" id="biomarker-severities-card">
+                            <div class="section-title-row">
+                                <h3>Multi-Tier Biomarker Severity Classification</h3>
+                                <span class="card-badge info">Clinical Range Tiers</span>
+                            </div>
+                            <div class="severity-cards-grid" id="severity-cards-grid"></div>
+                        </div>
+
+                        <!-- Actionable Clinical Action Plans -->
+                        <div class="card glass action-plans-card" id="action-plans-card">
+                            <div class="section-title-row">
+                                <h3>🎯 Structured Clinical Action Plans</h3>
+                                <span class="card-badge success">Evidence-Based Pathways</span>
+                            </div>
+                            <div class="action-plans-container" id="action-plans-container"></div>
+                        </div>
+
+                        <!-- ── CLINICAL RISK STRATIFICATION PANEL (5 SPECIALIZED MODULES) ── -->
+                        <div class="risk-stratification-container" id="risk-stratification-panel">
+                            <div class="section-title-row">
+                                <h3>Comprehensive Clinical Risk Stratification</h3>
+                                <span class="card-badge info">Calculated Clinical Indices</span>
+                            </div>
+                            <div class="risk-cards-grid five-grid">
+                                <!-- 1. ASCVD Cardiovascular Risk Card -->
+                                <div class="risk-card" id="rc-ascvd">
+                                    <div class="rc-header">
+                                        <span class="rc-title">10-Yr ASCVD Risk</span>
+                                        <span class="rc-badge" id="rc-ascvd-cat">Low Risk</span>
+                                    </div>
+                                    <div class="rc-value-row">
+                                        <span class="rc-num" id="rc-ascvd-val">—%</span>
+                                        <span class="rc-unit">10-Yr CVD</span>
+                                    </div>
+                                    <p class="rc-desc" id="rc-ascvd-desc">ACC/AHA clinical model</p>
+                                </div>
+
+                                <!-- 2. Anemia WHO Severity & Hematologic Risk Card -->
+                                <div class="risk-card" id="rc-anemia">
+                                    <div class="rc-header">
+                                        <span class="rc-title">Anemia Risk</span>
+                                        <span class="rc-badge" id="rc-anemia-grade">No Anaemia</span>
+                                    </div>
+                                    <div class="rc-value-row">
+                                        <span class="rc-num" id="rc-anemia-val">—</span>
+                                        <span class="rc-unit">g/dL Hb</span>
+                                    </div>
+                                    <p class="rc-desc" id="rc-anemia-desc">WHO severity staging</p>
+                                </div>
+
+                                <!-- 3. Metabolic Syndrome Card -->
+                                <div class="risk-card" id="rc-metabolic">
+                                    <div class="rc-header">
+                                        <span class="rc-title">Metabolic Risk</span>
+                                        <span class="rc-badge" id="rc-metabolic-badge">Low</span>
+                                    </div>
+                                    <div class="rc-value-row">
+                                        <span class="rc-num" id="rc-metabolic-score">0 / 4</span>
+                                        <span class="rc-unit">ATP III criteria</span>
+                                    </div>
+                                    <p class="rc-desc" id="rc-metabolic-desc">Insulin resistance proxy</p>
+                                </div>
+
+                                <!-- 4. Thyroid Dysfunction & ATA Risk Card -->
+                                <div class="risk-card" id="rc-thyroid">
+                                    <div class="rc-header">
+                                        <span class="rc-title">Thyroid Risk</span>
+                                        <span class="rc-badge" id="rc-thyroid-status">Euthyroid</span>
+                                    </div>
+                                    <div class="rc-value-row">
+                                        <span class="rc-num" id="rc-thyroid-val">—</span>
+                                        <span class="rc-unit">mIU/L TSH</span>
+                                    </div>
+                                    <p class="rc-desc" id="rc-thyroid-desc">ATA clinical guidelines</p>
+                                </div>
+
+                                <!-- 5. eGFR Renal Staging Card -->
+                                <div class="risk-card" id="rc-egfr">
+                                    <div class="rc-header">
+                                        <span class="rc-title">eGFR Renal Stage</span>
+                                        <span class="rc-badge" id="rc-egfr-stage">Stage 1</span>
+                                    </div>
+                                    <div class="rc-value-row">
+                                        <span class="rc-num" id="rc-egfr-val">—</span>
+                                        <span class="rc-unit">mL/min/1.73m²</span>
+                                    </div>
+                                    <p class="rc-desc" id="rc-egfr-desc">CKD-EPI 2021 staging</p>
+                                </div>
+
+                                <!-- 6. Autoimmune Risk Card -->
+                                <div class="risk-card" id="rc-autoimmune">
+                                    <div class="rc-header">
+                                        <span class="rc-title">Autoimmune Risk</span>
+                                        <span class="rc-badge" id="rc-autoimmune-badge">Low</span>
+                                    </div>
+                                    <div class="rc-value-row">
+                                        <span class="rc-num" id="rc-autoimmune-val">0</span>
+                                        <span class="rc-unit">Indicators</span>
+                                    </div>
+                                    <p class="rc-desc" id="rc-autoimmune-desc">Multi-line cytopenia & ESR</p>
+                                </div>
+
+                                <!-- 7. Micronutrient / Vitamin D Card -->
+                                <div class="risk-card" id="rc-micronutrient">
+                                    <div class="rc-header">
+                                        <span class="rc-title">Vitamin D Status</span>
+                                        <span class="rc-badge" id="rc-micronutrient-badge">Optimal</span>
+                                    </div>
+                                    <div class="rc-value-row">
+                                        <span class="rc-num" id="rc-micronutrient-val">—</span>
+                                        <span class="rc-unit">ng/mL</span>
+                                    </div>
+                                    <p class="rc-desc" id="rc-micronutrient-desc">25-OH Vitamin D</p>
+                                </div>
+                            </div>
+
+                            <!-- Cross-Marker Anomalies & Borderline Alerts -->
+                            <div class="anomalies-list hidden" id="cross-marker-anomalies"></div>
+                        </div>
+
+                        <!-- ── LONGITUDINAL TREND ANALYSIS & DELTA TRACKER ── -->
+                        <div class="card glass trends-card hidden" id="longitudinal-trends-card">
+                            <div class="card-header-row">
+                                <h3>Longitudinal Biomarker Trend Analysis</h3>
+                                <span class="card-badge success" id="trends-badge">Historical Comparison</span>
+                            </div>
+                            <p class="card-desc" id="trends-summary">Comparing current laboratory biomarkers against patient's previous records.</p>
+                            
+                            <!-- Deterioration Alerts -->
+                            <div class="trends-alerts-container hidden" id="trends-alerts-list"></div>
+
+                            <!-- Deltas Table -->
+                            <div class="trends-table-wrap">
+                                <table class="trends-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Biomarker</th>
+                                            <th>Previous Visit</th>
+                                            <th>Current Value</th>
+                                            <th>Absolute Change (Δ)</th>
+                                            <th>Percentage Change</th>
+                                            <th>Trajectory</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="trends-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── EXPLAINABLE AI (XAI) REASONING & DIFFERENTIAL DIAGNOSES ── -->
+                        <div class="card glass xai-reasoning-card" id="xai-reasoning-card">
+                            <div class="card-header-row">
+                                <h3>Explainable AI (XAI) Diagnostic Reasoning & Confidence Analysis</h3>
+                                <span class="card-badge purple">Clinical Decision Logic</span>
+                            </div>
+                            <div class="xai-content-grid">
+                                <div class="xai-block">
+                                    <h4>Pathophysiological Justification</h4>
+                                    <p id="xai-justification" class="xai-text">Loading reasoning...</p>
+                                </div>
+                                <div class="xai-block">
+                                    <h4>Confidence Derivation & Mathematical Logic</h4>
+                                    <p id="xai-why-confidence" class="xai-text">Loading...</p>
+                                </div>
+                                <div class="xai-block">
+                                    <h4>Ensemble Agreement Breakdown</h4>
+                                    <p id="xai-consensus-math" class="xai-text">Loading...</p>
+                                </div>
+                                <div class="xai-block">
+                                    <h4>Uncertainty & Clinical Risk Factors</h4>
+                                    <ul id="xai-uncertainty-list" class="xai-uncertainty-list"></ul>
+                                </div>
+                                <div class="xai-block full-width">
+                                    <h4>Demographic & Contextual Patient Profile</h4>
+                                    <p id="xai-demographics-impact" class="xai-text">Loading...</p>
+                                </div>
+                            </div>
+
+                            <!-- Differential Diagnoses Grid -->
+                            <div class="diff-dx-section">
+                                <h4 class="diff-dx-heading">Ranked Differential Diagnoses</h4>
+                                <div class="diff-dx-grid" id="diff-dx-grid"></div>
+                            </div>
+                        </div>
+
+                        <!-- ── PATIENT HISTORY & CONTEXT CROSS-CHECK INQUIRIES ── -->
+                        <div class="card glass inquiries-card" id="inquiries-card">
+                            <div class="card-header-row">
+                                <h3>Recommended Clinical History Inquiries</h3>
+                                <span class="card-badge warning">Doctor Action Checklist</span>
+                            </div>
+                            <p class="card-desc">When clinical notes are brief or absent, attending physicians should cross-check these high-yield history parameters before finalizing diagnosis:</p>
+                            <ul class="inquiries-checklist" id="inquiries-list"></ul>
+                        </div>
+
+                        <!-- 4-Model Consensus Cards -->
+                        <div class="model-cards-grid" id="model-cards-grid">
+                            <div class="model-card" id="mc-rules">
+                                <div class="mc-header"><span class="mc-name">Clinical Rules</span><span class="mc-badge local">LOCAL</span></div>
+                                <div class="mc-diagnosis" id="mc-rules-diag">—</div>
+                                <div class="mc-latency" id="mc-rules-lat">—</div>
+                            </div>
+                            <div class="model-card" id="mc-xgb">
+                                <div class="mc-header"><span class="mc-name">XGBoost ML</span><span class="mc-badge local">LOCAL</span></div>
+                                <div class="mc-diagnosis" id="mc-xgb-diag">—</div>
+                                <div class="mc-latency" id="mc-xgb-lat">—</div>
+                            </div>
+                            <div class="model-card" id="mc-nvidia">
+                                <div class="mc-header"><span class="mc-name">NVIDIA NIM</span><span class="mc-badge cloud">CLOUD</span></div>
+                                <div class="mc-diagnosis" id="mc-nvidia-diag">—</div>
+                                <div class="mc-latency" id="mc-nvidia-lat">—</div>
+                            </div>
+                            <div class="model-card" id="mc-gemini">
+                                <div class="mc-header"><span class="mc-name">Gemini 2.5</span><span class="mc-badge cloud">CLOUD</span></div>
+                                <div class="mc-diagnosis" id="mc-gemini-diag">—</div>
+                                <div class="mc-latency" id="mc-gemini-lat">—</div>
+                            </div>
+                        </div>
+
+                        <!-- Biomarker Quick Summary Strip -->
+                        <div class="card glass biomarker-strip-card">
+                            <div class="card-header-row">
+                                <h3>Extracted Biomarkers</h3>
+                                <button type="button" class="btn-action-outline btn-profile" onclick="switchTab('biomarkers')">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                    View Full Profile
+                                </button>
+                            </div>
+                            <div class="biomarker-strip" id="biomarker-strip"></div>
+                        </div>
+
+                        <!-- Recommendations -->
+                        <div class="card glass recs-card">
+                            <div class="card-header-row">
+                                <h3>Personalized Follow-Up Actions & Clinical Management</h3>
+                                <span class="card-badge warning">Risk-Stratified</span>
+                            </div>
+                            <ol class="recs-list" id="recs-list"></ol>
+                        </div>
+
+                        <!-- Doctor Review & Sign-Off -->
+                        <div class="card glass review-card" id="review-card">
+                            <div class="card-header-row">
+                                <h3>Doctor Review & Sign-Off</h3>
+                                <span class="card-badge danger" id="review-required-badge">Review Required</span>
+                            </div>
+                            <p class="review-disclaimer">This report is AI-generated. Review and approval by the attending doctor is mandatory before clinical use or patient communication.</p>
+                            <div class="review-options">
+                                <label class="review-option" id="ro-confirm">
+                                    <input type="radio" name="review-action" value="confirm">
+                                    <div class="ro-content">
+                                        <div class="ro-icon confirm">✓</div>
+                                        <div>
+                                            <strong>Confirm AI Findings</strong>
+                                            <p>The AI diagnosis aligns with clinical presentation</p>
+                                        </div>
+                                    </div>
+                                </label>
+                                <label class="review-option" id="ro-modify">
+                                    <input type="radio" name="review-action" value="modify">
+                                    <div class="ro-content">
+                                        <div class="ro-icon modify">✎</div>
+                                        <div>
+                                            <strong>Modify Diagnosis</strong>
+                                            <p>I have amended the findings — see my notes below</p>
+                                        </div>
+                                    </div>
+                                </label>
+                                <label class="review-option" id="ro-reject">
+                                    <input type="radio" name="review-action" value="reject">
+                                    <div class="ro-content">
+                                        <div class="ro-icon reject">✗</div>
+                                        <div>
+                                            <strong>Reject & Re-analyse</strong>
+                                            <p>The AI output is incorrect — request a fresh analysis</p>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                            <textarea class="review-notes" id="review-notes" placeholder="Doctor's clinical notes, amendments, or additional observations (optional)..." rows="3"></textarea>
+                            <div class="review-footer">
+                                <div class="review-sig-info" id="review-sig-info">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                    <span id="review-sig-name">—</span>
+                                </div>
+                                <button class="btn-sign" id="btn-sign" onclick="finalizeReport()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                    Sign & Finalise Report
+                                </button>
+                            </div>
+                            <!-- Finalised State -->
+                            <div class="review-finalised hidden" id="review-finalised">
+                                <div class="finalised-icon">✅</div>
+                                <div>
+                                    <strong>Report Finalised</strong>
+                                    <p id="finalised-summary"></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- XGBoost Probability Chart -->
+                        <div class="card glass probability-card">
+                            <div class="card-header-row">
+                                <h3>ML Disease Risk Profile (XGBoost)</h3>
+                                <span class="card-badge">Probability Distribution</span>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="diseaseProbChart"></canvas>
+                            </div>
+                        </div>
+
+                    </div><!-- /analysis-results -->
+                </div><!-- /grid-right -->
+            </div><!-- /dashboard-grid -->
+        </section>
+
+        <!-- ─── TAB: REPORT HISTORY ─── -->
+        <section id="tab-history" class="tab-pane">
+            <div class="card glass wide-card">
+                <div class="card-header-row">
+                    <h3>Patient Diagnostic Report History</h3>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <button type="button" class="btn-sm-action" onclick="loadHistoryFromServer()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                            <span>Refresh Records</span>
+                        </button>
+                        <button class="btn-link" onclick="clearHistory()">Clear Session</button>
+                    </div>
+                </div>
+                <p class="card-desc">Diagnostic dossiers analysed on this workstation and synchronized to Supabase Cloud PostgreSQL database.</p>
+                <div id="history-list" class="history-list">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                        <p>No reports analysed yet this session.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── TAB: BIOMARKER PROFILE ─── -->
+        <section id="tab-biomarkers" class="tab-pane">
+            <div class="card glass wide-card">
+                <div class="card-header-row">
+                    <h3>Extracted Blood Biomarkers</h3>
+                    <span id="biomarker-patient-ref" class="card-badge"></span>
+                </div>
+                <p class="card-desc">Individual parameters extracted from the patient report mapped against clinical reference ranges.</p>
+                <div class="biomarkers-grid" id="biomarkers-grid-container">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                        <p>Upload or select a laboratory report to view individual biomarker reference curves.</p>
+                        <button type="button" class="btn-sample-chip" onclick="loadSampleCase('anemia'); switchTab('dashboard');" style="margin-top:14px;">
+                            <span>🩸 Load Sample Iron Deficiency Case</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── TAB: MODEL COMPARISON ─── -->
+        <section id="tab-comparison" class="tab-pane">
+            <div class="card glass wide-card">
+                <h3>4-Model Output Comparison</h3>
+                <p class="card-desc">Side-by-side evaluation of extraction time, predicted conditions, and clinical narratives from all four AI engines.</p>
+                <div class="table-container">
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th>Deployment</th>
+                                <th>Latency</th>
+                                <th>Diagnosis</th>
+                                <th>Clinical Narrative</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr id="row-model-1"><td class="model-name">Model 1: EasyOCR + Clinical Rules</td><td><span class="badge local">Local</span></td><td class="latency">—</td><td class="diagnosis-val">—</td><td class="details-val">—</td></tr>
+                            <tr id="row-model-2"><td class="model-name">Model 2: EasyOCR + XGBoost</td><td><span class="badge local">Local</span></td><td class="latency">—</td><td class="diagnosis-val">—</td><td class="details-val">—</td></tr>
+                            <tr id="row-model-3"><td class="model-name">Model 3: NVIDIA NIM (Llama 3.2 Vision)</td><td><span class="badge cloud">Cloud VLM</span></td><td class="latency">—</td><td class="diagnosis-val">—</td><td class="details-val">—</td></tr>
+                            <tr id="row-model-4"><td class="model-name">Model 4: Gemini 2.5 Flash</td><td><span class="badge cloud">Cloud VLM</span></td><td class="latency">—</td><td class="diagnosis-val">—</td><td class="details-val">—</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── TAB: BENCHMARKS ─── -->
+        <section id="tab-benchmarks" class="tab-pane">
+            <div class="benchmarks-grid">
+                <div class="card glass">
+                    <h3>Model Performance Overview</h3>
+                    <p class="card-desc">Training metrics evaluated across 3,000 augmented clinical records.</p>
+                    <div class="metrics-scores">
+                        <div class="metric-score-card">
+                            <h4>Logistic Regression</h4>
+                            <div class="score" id="score-lr">—</div>
+                            <p>F1-Macro: <span id="f1-lr">—</span></p>
+                            <p>Latency: <span id="lat-lr">—</span> ms</p>
+                        </div>
+                        <div class="metric-score-card highlighted">
+                            <h4>XGBoost Classifier</h4>
+                            <div class="score" id="score-xgb">—</div>
+                            <p>F1-Macro: <span id="f1-xgb">—</span></p>
+                            <p>Latency: <span id="lat-xgb">—</span> ms</p>
+                        </div>
+                        <div class="metric-score-card">
+                            <h4>Random Forest</h4>
+                            <div class="score" id="score-rf">—</div>
+                            <p>F1-Macro: <span id="f1-rf">—</span></p>
+                            <p>Latency: <span id="lat-rf">—</span> ms</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card glass">
+                    <h3>Per-Class F1 Score (XGBoost)</h3>
+                    <p class="card-desc">F1 recall performance per pathological class on the test set.</p>
+                    <div class="chart-container-large">
+                        <canvas id="f1ClassChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── TAB: SETTINGS ─── -->
+        <section id="tab-settings" class="tab-pane">
+            <div class="card glass settings-card">
+                <h3>Vision Language Model API Keys</h3>
+                <p class="card-desc">API keys are securely stored in your doctor profile on the server and used automatically for all analyses. Keys are never exposed to other users.</p>
+                <div class="settings-form">
+                    <div class="fgroup">
+                        <label for="nvidia-api-key-input">NVIDIA API Key</label>
+                        <input type="password" id="nvidia-api-key-input" placeholder="nvapi-...">
+                        <p class="input-help">Powers the <strong>meta/llama-3.2-11b-vision-instruct</strong> NIM vision model</p>
+                    </div>
+                    <div class="fgroup">
+                        <label for="gemini-api-key-input">Google Gemini API Key</label>
+                        <input type="password" id="gemini-api-key-input" placeholder="AQ.Ab...">
+                        <p class="input-help">Powers the <strong>gemini-2.5-flash</strong> multimodal model</p>
+                    </div>
+                    <div class="settings-actions">
+                        <button class="btn btn-primary" id="btn-save-keys">Save & Sync Keys</button>
+                        <button class="btn btn-outline" id="btn-reset-defaults">Restore Defaults</button>
+                        <button class="btn btn-outline" id="btn-toggle-keys">Show Keys</button>
+                    </div>
+                    <div class="settings-status" id="settings-status"></div>
+                </div>
+            </div>
+
+            <!-- Supabase Cloud Integration Card -->
+            <div class="card glass settings-card" style="margin-top: 1.5rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                        </svg>
+                        <h3 style="margin:0;">Supabase Cloud Database (Live Sync)</h3>
+                    </div>
+                    <span id="supabase-status-pill" class="badge badge-inactive">Checking...</span>
+                </div>
+                <p class="card-desc">Diagnostic reports and doctor sign-offs are automatically synchronized in real-time to your Supabase cloud PostgreSQL database.</p>
+
+                <div class="settings-form">
+                    <div class="fgroup">
+                        <label>Supabase REST Endpoint</label>
+                        <input type="text" id="supabase-url-display" readonly value="https://gijnbprqdfigzbgnwgmj.supabase.co/rest/v1/" style="font-family: monospace; background: rgba(0,0,0,0.2); cursor: text;">
+                    </div>
+                    <div class="fgroup">
+                        <label>API Key (Publishable / Anon)</label>
+                        <input type="password" id="supabase-key-display" readonly value="sb_publishable_-VxqlUrLXChGTx7I4WpD_Q_wOGL0pEF" style="font-family: monospace; background: rgba(0,0,0,0.2); cursor: text;">
+                    </div>
+
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem;">
+                        <button class="btn btn-primary" id="btn-test-supabase" type="button">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                            Test Connection
+                        </button>
+                        <button class="btn btn-outline" id="btn-sync-supabase" type="button">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+                            Sync All Local Reports
+                        </button>
+                        <button class="btn btn-outline" id="btn-view-supabase-sql" type="button">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px;"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="11" y2="17"/></svg>
+                            View & Copy SQL Schema
+                        </button>
+                    </div>
+
+                    <div id="supabase-test-results" style="margin-top: 1rem; font-size: 0.88rem; display: none;"></div>
+
+                    <!-- SQL schema drawer -->
+                    <div id="supabase-sql-drawer" style="display:none; margin-top: 1rem; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; background: rgba(0,0,0,0.3);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+                            <strong>Supabase SQL Setup (supabase_schema.sql)</strong>
+                            <button class="btn btn-outline" style="padding: 2px 10px; font-size: 0.75rem;" id="btn-copy-sql" type="button">Copy to Clipboard</button>
+                        </div>
+                        <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem;">
+                            Open your <a href="https://supabase.com/dashboard/project/gijnbprqdfigzbgnwgmj/sql/new" target="_blank" style="color: #38bdf8; text-decoration: underline;">Supabase SQL Editor</a>, paste the SQL below, and click <strong>Run</strong>:
+                        </p>
+                        <pre id="supabase-sql-code" style="font-size: 0.75rem; max-height: 200px; overflow-y: auto; background: #0f172a; padding: 0.75rem; border-radius: 6px; color: #e2e8f0; white-space: pre-wrap;"></pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- ══════════════════ PRINT VIEW ══════════════════ -->
+<div id="print-view" class="print-only">
+    <div class="print-header">
+        <h1>CliniQ AI — Clinical Laboratory Report</h1>
+        <p>Generated: <span id="print-date"></span></p>
+    </div>
+    <div class="print-doctor-info">
+        <p><strong>Attending Doctor:</strong> <span id="print-doctor-name"></span></p>
+        <p><strong>SLMC Registration:</strong> <span id="print-slmc"></span></p>
+    </div>
+    <div class="print-patient-info">
+        <p><strong>Patient Reference:</strong> <span id="print-ref"></span></p>
+        <p><strong>Patient Name:</strong> <span id="print-patient-name"></span></p>
+        <p><strong>Age / Gender:</strong> <span id="print-age-gender"></span></p>
+        <p><strong>Report Type:</strong> <span id="print-report-type"></span></p>
+        <p><strong>Report Date:</strong> <span id="print-report-date"></span></p>
+        <p><strong>Clinical Notes:</strong> <span id="print-notes"></span></p>
+    </div>
+    <hr>
+    <div class="print-diagnosis">
+        <h2>AI Diagnostic Findings</h2>
+        <p><strong>Primary Diagnosis:</strong> <span id="print-diagnosis"></span></p>
+        <p><strong>Ensemble Confidence:</strong> <span id="print-confidence"></span></p>
+    </div>
+    <h3>Extracted Biomarkers</h3>
+    <table class="print-table">
+        <thead><tr><th>Biomarker</th><th>Value</th><th>Normal Range</th><th>Status</th></tr></thead>
+        <tbody id="print-biomarkers-body"></tbody>
+    </table>
+    <hr>
+    <h3>Clinical Interpretation</h3>
+    <p id="print-interpretation-text"></p>
+    <hr>
+    <h3>Recommended Follow-Up Actions</h3>
+    <ol id="print-recs"></ol>
+    <hr>
+    <h3>Doctor Review</h3>
+    <p><strong>Review Decision:</strong> <span id="print-review-decision"></span></p>
+    <p><strong>Doctor's Notes:</strong> <span id="print-review-notes"></span></p>
+    <p><strong>Signed By:</strong> <span id="print-signed-by"></span></p>
+    <footer class="print-footer">
+        <p>⚕ This report is an AI-assisted clinical decision support tool. All findings must be verified by the attending physician. Not a substitute for professional medical judgment.</p>
+    </footer>
+</div>
+
+<!-- ══════════════════ ORIGINAL LAB REPORT LIGHTBOX / MODAL ══════════════════ -->
+<div class="report-modal hidden" id="report-modal">
+    <div class="report-modal-backdrop" onclick="closeReportModal()"></div>
+    <div class="report-modal-dialog">
+        <div class="report-modal-header">
+            <div class="report-modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;color:var(--cyan);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                <div>
+                    <h4 id="report-modal-filename">Original Lab Report Document</h4>
+                    <p id="report-modal-sub">Attending Clinician Document Inspection View</p>
+                </div>
+            </div>
+            <div class="report-modal-toolbar">
+                <button class="modal-tool-btn" onclick="zoomReport(-0.2)" title="Zoom Out (Ctrl -)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                </button>
+                <span class="zoom-level-text" id="report-zoom-val">100%</span>
+                <button class="modal-tool-btn" onclick="zoomReport(+0.2)" title="Zoom In (Ctrl +)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                </button>
+                <button class="modal-tool-btn" onclick="resetReportZoom()" title="Reset Zoom">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+                <button class="modal-tool-btn" onclick="rotateReport()" title="Rotate 90°">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                </button>
+                <a class="modal-tool-btn" id="report-modal-download" download="lab_report.png" href="#" title="Download Document">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                </a>
+                <button class="modal-close-btn" onclick="closeReportModal()" title="Close Viewer (Esc)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="report-modal-body" id="report-modal-viewport">
+            <div class="report-modal-canvas" id="report-modal-canvas">
+                <img id="report-modal-img" src="" alt="Uploaded Lab Report" draggable="false">
+                <iframe id="report-modal-pdf" src="" class="hidden" style="width:100%; height:100%; border:none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

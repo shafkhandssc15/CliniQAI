@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CliniQ AI — Admin Panel</title>
+    <link rel="icon" type="image/png" href="/static/Logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-deep:    #050d1a;
+            --bg-panel:   #0c1829;
+            --bg-card:    #111f35;
+            --border:     rgba(6,182,212,0.15);
+            --accent:     #06b6d4;
+            --accent-light: #67e8f9;
+            --success:    #10b981;
+            --danger:     #ef4444;
+            --warning:    #f59e0b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 0;
+        }
+
+        body::before {
+            content: '';
+            position: fixed; inset: 0;
+            background: radial-gradient(ellipse 60% 40% at 30% 5%, rgba(6,182,212,0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        header {
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+            display: flex; align-items: center; justify-content: space-between;
+            height: 64px;
+            position: sticky; top: 0; z-index: 100;
+        }
+
+        .header-logo {
+            display: flex; align-items: center; gap: 12px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.2rem; font-weight: 700;
+        }
+
+        .header-logo .dot { color: var(--accent); }
+
+        .header-badge {
+            background: rgba(239,68,68,0.15);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 0.75rem; font-weight: 700;
+            color: #fca5a5;
+        }
+
+        .header-right { display: flex; gap: 12px; align-items: center; }
+
+        .btn-sm {
+            padding: 7px 16px;
+            border-radius: 8px;
+            font-size: 0.8rem; font-weight: 600;
+            font-family: 'Outfit', sans-serif;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+        .btn-danger-sm {
+            padding: 6px 14px;
+            border-radius: 7px;
+            font-size: 0.78rem; font-weight: 600;
+            border: 1px solid rgba(239,68,68,0.4);
+            background: rgba(239,68,68,0.1);
+            color: #fca5a5;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-danger-sm:hover { background: rgba(239,68,68,0.2); }
+
+        main { max-width: 1100px; margin: 0 auto; padding: 36px 24px; }
+
+        .page-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.8rem; font-weight: 800;
+            margin-bottom: 6px;
+        }
+
+        .page-subtitle { font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 32px; }
+
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+        }
+
+        .stat-card .stat-label {
+            font-size: 0.75rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-muted); margin-bottom: 8px;
+        }
+
+        .stat-card .stat-value {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem; font-weight: 800;
+        }
+
+        .stat-card.pending .stat-value { color: var(--warning); }
+        .stat-card.approved .stat-value { color: var(--success); }
+        .stat-card.rejected .stat-value { color: var(--danger); }
+        .stat-card.total .stat-value { color: var(--accent); }
+
+        .section-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .section-header h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.1rem; font-weight: 700;
+        }
+
+        .filter-tabs { display: flex; gap: 8px; }
+
+        .filter-tab {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem; font-weight: 600;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-tab.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--bg-deep);
+        }
+
+        .table-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        th {
+            padding: 14px 20px;
+            text-align: left;
+            font-size: 0.72rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-muted);
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 16px 20px;
+            font-size: 0.875rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            vertical-align: middle;
+        }
+
+        tr:last-child td { border-bottom: none; }
+
+        tr:hover td { background: rgba(6,182,212,0.04); }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.72rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+
+        .status-PENDING_ADMIN_APPROVAL { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+        .status-VERIFIED  { background: rgba(16,185,129,0.12); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.25); }
+        .status-REJECTED  { background: rgba(239,68,68,0.12); color: #fca5a5; border: 1px solid rgba(239,68,68,0.25); }
+        .status-SUSPENDED { background: rgba(148,163,184,0.12); color: #94a3b8; border: 1px solid rgba(148,163,184,0.25); }
+
+        .action-btns { display: flex; gap: 8px; }
+
+        .btn-approve {
+            padding: 6px 14px;
+            border-radius: 7px;
+            font-size: 0.78rem; font-weight: 600;
+            border: 1px solid rgba(16,185,129,0.4);
+            background: rgba(16,185,129,0.1);
+            color: #6ee7b7;
+            cursor: pointer; transition: all 0.2s;
+        }
+
+        .btn-approve:hover { background: rgba(16,185,129,0.2); }
+
+        .empty-state {
+            text-align: center; padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.4; }
+        .empty-state p { font-size: 0.875rem; }
+
+        .alert {
+            padding: 12px 16px; border-radius: 10px;
+            font-size: 0.875rem; margin-bottom: 20px; display: none;
+        }
+
+        .alert.success { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; display: block; }
+        .alert.error { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; display: block; }
+
+        #action-feedback { margin-bottom: 16px; display: none; }
+
+        .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-logo">
+            <img src="/static/Logo.png" alt="CliniQ AI Logo" style="width:32px; height:32px; object-fit:contain; border-radius:8px; box-shadow:0 0 12px rgba(6,182,212,0.3);">
+            <span>CliniQ <span class="dot">AI</span></span>
+            <div class="header-badge">⚡ ADMIN</div>
+        </div>
+        <div class="header-right">
+            <span id="admin-name" style="font-size:0.85rem; color: var(--text-secondary)"></span>
+            <button class="btn-sm" onclick="window.location.href='/'">← Dashboard</button>
+            <button class="btn-sm" onclick="doLogout()">Logout</button>
+        </div>
+    </header>
+
+    <main>
+        <div class="page-title">Administration Panel</div>
+        <p class="page-subtitle">Manage doctor registrations, approve SLMC-verified practitioners, and oversee platform access.</p>
+
+        <div class="stats-grid">
+            <div class="stat-card pending">
+                <div class="stat-label">Pending Approval</div>
+                <div class="stat-value" id="stat-pending">—</div>
+            </div>
+            <div class="stat-card approved">
+                <div class="stat-label">Verified Doctors</div>
+                <div class="stat-value" id="stat-approved">—</div>
+            </div>
+            <div class="stat-card rejected">
+                <div class="stat-label">Rejected</div>
+                <div class="stat-value" id="stat-rejected">—</div>
+            </div>
+            <div class="stat-card total">
+                <div class="stat-label">Total Accounts</div>
+                <div class="stat-value" id="stat-total">—</div>
+            </div>
+        </div>
+
+        <div id="action-feedback" class="alert"></div>
+
+        <div class="section-header">
+            <h3>Doctor Registrations</h3>
+            <div class="filter-tabs">
+                <button class="filter-tab active" onclick="loadTab('PENDING_ADMIN_APPROVAL', this)">Pending</button>
+                <button class="filter-tab" onclick="loadTab('VERIFIED', this)">Approved</button>
+                <button class="filter-tab" onclick="loadTab('REJECTED', this)">Rejected</button>
+            </div>
+        </div>
+
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Doctor</th>
+                        <th>SLMC No.</th>
+                        <th>NIC</th>
+                        <th>Contact</th>
+                        <th>Status</th>
+                        <th>Applied</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="registrations-table">
+                    <tr><td colspan="7"><div class="empty-state"><p>Loading registrations...</p></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        let authToken = localStorage.getItem("cliniq_token");
+
+        // Redirect to login if not authenticated
+        if (!authToken) { window.location.href = "/login.html"; }
+
+        // Show admin name
+        const doc = JSON.parse(localStorage.getItem("cliniq_doctor") || "{}");
+        if (doc.full_name) document.getElementById("admin-name").textContent = doc.full_name;
+        if (doc.role !== "ADMIN") {
+            document.querySelector("main").innerHTML = `<div style="text-align:center;padding:80px;color:#fca5a5">
+                <h2>⛔ Access Denied</h2><p style="margin-top:12px">Administrator role required.</p>
+            </div>`;
+        }
+
+        const headers = { "Authorization": `Bearer ${authToken}` };
+
+        async function loadStats() {
+            const statuses = ["PENDING_ADMIN_APPROVAL", "VERIFIED", "REJECTED"];
+            const counts   = { "PENDING_ADMIN_APPROVAL": 0, "VERIFIED": 0, "REJECTED": 0 };
+            for (const s of statuses) {
+                try {
+                    const r = await fetch(`/api/admin/registrations?status=${s}`, { headers });
+                    const d = await r.json();
+                    counts[s] = d.count || 0;
+                } catch {}
+            }
+            document.getElementById("stat-pending").textContent  = counts["PENDING_ADMIN_APPROVAL"];
+            document.getElementById("stat-approved").textContent  = counts["VERIFIED"];
+            document.getElementById("stat-rejected").textContent  = counts["REJECTED"];
+            document.getElementById("stat-total").textContent     = Object.values(counts).reduce((a,b)=>a+b,0);
+        }
+
+        async function loadTab(status, btn) {
+            document.querySelectorAll(".filter-tab").forEach(t => t.classList.remove("active"));
+            btn.classList.add("active");
+            await loadRegistrations(status);
+        }
+
+        async function loadRegistrations(status = "PENDING_ADMIN_APPROVAL") {
+            const tbody = document.getElementById("registrations-table");
+            tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><p><span class="spinner"></span> Loading...</p></div></td></tr>`;
+
+            try {
+                const res = await fetch(`/api/admin/registrations?status=${status}`, { headers });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state" style="color:#fca5a5"><p>Error: ${data.detail}</p></div></td></tr>`;
+                    return;
+                }
+
+                if (data.registrations.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+                        <p>No registrations with status "${status}".</p>
+                    </div></td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = data.registrations.map(d => `
+                    <tr>
+                        <td>
+                            <div style="font-weight:600">${d.full_name}</div>
+                            <div style="font-size:0.78rem;color:var(--text-muted)">${d.email}</div>
+                        </td>
+                        <td><code style="color:var(--accent-light)">${d.slmc_number}</code></td>
+                        <td><code style="font-size:0.8rem;color:var(--text-secondary)">${d.nic}</code></td>
+                        <td style="color:var(--text-secondary)">${d.phone}</td>
+                        <td><span class="status-badge status-${d.status}">${d.status.replace(/_/g,' ')}</span></td>
+                        <td style="color:var(--text-muted);font-size:0.8rem">${new Date(d.created_at).toLocaleDateString('en-GB')}</td>
+                        <td>
+                            <div class="action-btns">
+                                ${d.status === 'PENDING_ADMIN_APPROVAL' ? `
+                                    <button class="btn-approve" onclick="approve('${d.id}', '${d.full_name}')">✓ Approve</button>
+                                    <button class="btn-danger-sm" onclick="reject('${d.id}', '${d.full_name}')">✗ Reject</button>
+                                ` : '—'}
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state" style="color:#fca5a5"><p>Network error: ${err.message}</p></div></td></tr>`;
+            }
+        }
+
+        function showFeedback(msg, type) {
+            const el = document.getElementById("action-feedback");
+            el.textContent = msg;
+            el.className = `alert ${type}`;
+            el.style.display = "block";
+            setTimeout(() => { el.style.display = "none"; }, 4000);
+        }
+
+        async function approve(id, name) {
+            if (!confirm(`Approve Dr. ${name}?\nThey will be immediately able to log in.`)) return;
+            try {
+                const res = await fetch(`/api/admin/registrations/${id}/approve`, { method: "POST", headers });
+                const data = await res.json();
+                if (res.ok) {
+                    showFeedback(`✅ ${data.message}`, "success");
+                    await loadStats();
+                    await loadRegistrations("PENDING_ADMIN_APPROVAL");
+                } else {
+                    showFeedback(`Error: ${data.detail}`, "error");
+                }
+            } catch (err) {
+                showFeedback(`Network error: ${err.message}`, "error");
+            }
+        }
+
+        async function reject(id, name) {
+            const reason = prompt(`Reason for rejecting Dr. ${name}'s application:`, "SLMC number could not be verified in the SLMC register.");
+            if (reason === null) return;
+            try {
+                const res = await fetch(`/api/admin/registrations/${id}/reject`, {
+                    method: "POST",
+                    headers: { ...headers, "Content-Type": "application/json" },
+                    body: JSON.stringify({ reason })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showFeedback(`✅ ${data.message}`, "success");
+                    await loadStats();
+                    await loadRegistrations("PENDING_ADMIN_APPROVAL");
+                } else {
+                    showFeedback(`Error: ${data.detail}`, "error");
+                }
+            } catch (err) {
+                showFeedback(`Network error: ${err.message}`, "error");
+            }
+        }
+
+        async function doLogout() {
+            try {
+                await fetch("/api/auth/logout", { method: "POST", headers });
+            } catch {}
+            localStorage.removeItem("cliniq_token");
+            localStorage.removeItem("cliniq_doctor");
+            window.location.href = "/login.html";
+        }
+
+        // Init
+        loadStats();
+        loadRegistrations("PENDING_ADMIN_APPROVAL");
+    </script>
+</body>
+</html>

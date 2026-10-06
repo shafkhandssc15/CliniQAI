@@ -1,0 +1,209 @@
+{
+    "Logistic Regression": {
+        "accuracy": 0.9617,
+        "f1_macro": 0.9618,
+        "training_time_sec": 0.4446,
+        "inference_latency_ms": 0.002427,
+        "classification_report": {
+            "Anemia": {
+                "precision": 0.9367088607594937,
+                "recall": 0.9866666666666667,
+                "f1-score": 0.961038961038961,
+                "support": 75.0
+            },
+            "Chronic Kidney Disease": {
+                "precision": 1.0,
+                "recall": 0.96,
+                "f1-score": 0.9795918367346939,
+                "support": 75.0
+            },
+            "Diabetes": {
+                "precision": 1.0,
+                "recall": 0.96,
+                "f1-score": 0.9795918367346939,
+                "support": 75.0
+            },
+            "Healthy": {
+                "precision": 0.8933333333333333,
+                "recall": 0.8933333333333333,
+                "f1-score": 0.8933333333333333,
+                "support": 75.0
+            },
+            "Hypercholesterolemia": {
+                "precision": 0.9866666666666667,
+                "recall": 0.9866666666666667,
+                "f1-score": 0.9866666666666667,
+                "support": 75.0
+            },
+            "Hyperthyroidism": {
+                "precision": 0.9259259259259259,
+                "recall": 1.0,
+                "f1-score": 0.9615384615384616,
+                "support": 75.0
+            },
+            "Hypothyroidism": {
+                "precision": 0.9864864864864865,
+                "recall": 0.9733333333333334,
+                "f1-score": 0.9798657718120806,
+                "support": 75.0
+            },
+            "Infection": {
+                "precision": 0.9722222222222222,
+                "recall": 0.9333333333333333,
+                "f1-score": 0.9523809523809523,
+                "support": 75.0
+            },
+            "accuracy": 0.9616666666666667,
+            "macro avg": {
+                "precision": 0.962667936924266,
+                "recall": 0.9616666666666667,
+                "f1-score": 0.9617509775299804,
+                "support": 600.0
+            },
+            "weighted avg": {
+                "precision": 0.9626679369242659,
+                "recall": 0.9616666666666667,
+                "f1-score": 0.9617509775299804,
+                "support": 600.0
+            }
+        }
+    },
+    "Random Forest": {
+        "accuracy": 0.9833,
+        "f1_macro": 0.9833,
+        "training_time_sec": 0.249,
+        "inference_latency_ms": 0.015487,
+        "classification_report": {
+            "Anemia": {
+                "precision": 0.9866666666666667,
+                "recall": 0.9866666666666667,
+                "f1-score": 0.9866666666666667,
+                "support": 75.0
+            },
+            "Chronic Kidney Disease": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 75.0
+            },
+            "Diabetes": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 75.0
+            },
+            "Healthy": {
+                "precision": 0.922077922077922,
+                "recall": 0.9466666666666667,
+                "f1-score": 0.9342105263157895,
+                "support": 75.0
+            },
+            "Hypercholesterolemia": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 75.0
+            },
+            "Hyperthyroidism": {
+                "precision": 0.9868421052631579,
+                "recall": 1.0,
+                "f1-score": 0.9933774834437086,
+                "support": 75.0
+            },
+            "Hypothyroidism": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 75.0
+            },
+            "Infection": {
+                "precision": 0.9722222222222222,
+                "recall": 0.9333333333333333,
+                "f1-score": 0.9523809523809523,
+                "support": 75.0
+            },
+            "accuracy": 0.9833333333333333,
+            "macro avg": {
+                "precision": 0.9834761145287461,
+                "recall": 0.9833333333333334,
+                "f1-score": 0.9833294536008896,
+                "support": 600.0
+            },
+            "weighted avg": {
+                "precision": 0.9834761145287462,
+                "recall": 0.9833333333333333,
+                "f1-score": 0.9833294536008895,
+                "support": 600.0
+            }
+        }
+    },
+    "XGBoost": {
+        "accuracy": 0.985,
+        "f1_macro": 0.985,
+        "training_time_sec": 0.2989,
+        "inference_latency_ms": 0.006633,
+        "classification_report": {
+            "Anemia": {
+                "precision": 0.9866666666666667,
+                "recall": 0.9866666666666667,
+                "f1-score": 0.9866666666666667,
+                "support": 75.0
+            },
+            "Chronic Kidney Disease": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 75.0
+            },
+            "Diabetes": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 75.0
+            },
+            "Healthy": {
+                "precision": 0.9342105263157895,
+                "recall": 0.9466666666666667,
+                "f1-score": 0.9403973509933775,
+                "support": 75.0
+            },
+            "Hypercholesterolemia": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 75.0
+            },
+            "Hyperthyroidism": {
+                "precision": 0.9868421052631579,
+                "recall": 1.0,
+                "f1-score": 0.9933774834437086,
+                "support": 75.0
+            },
+            "Hypothyroidism": {
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1-score": 1.0,
+                "support": 75.0
+            },
+            "Infection": {
+                "precision": 0.9726027397260274,
+                "recall": 0.9466666666666667,
+                "f1-score": 0.9594594594594594,
+                "support": 75.0
+            },
+            "accuracy": 0.985,
+            "macro avg": {
+                "precision": 0.9850402547464552,
+                "recall": 0.9850000000000001,
+                "f1-score": 0.9849876200704015,
+                "support": 600.0
+            },
+            "weighted avg": {
+                "precision": 0.9850402547464552,
+                "recall": 0.985,
+                "f1-score": 0.9849876200704015,
+                "support": 600.0
+            }
+        }
+    }
+}

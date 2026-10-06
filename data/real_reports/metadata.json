@@ -1,0 +1,27 @@
+{
+    "real_report_0.png": {
+        "ground_truth_file": "real_report_0_gt.md",
+        "label": "Real Historical Lab Report",
+        "source": "india-medical-ocr-test"
+    },
+    "real_report_1.png": {
+        "ground_truth_file": "real_report_1_gt.md",
+        "label": "Real Historical Lab Report",
+        "source": "india-medical-ocr-test"
+    },
+    "real_report_2.png": {
+        "ground_truth_file": "real_report_2_gt.md",
+        "label": "Real Historical Lab Report",
+        "source": "india-medical-ocr-test"
+    },
+    "real_report_3.png": {
+        "ground_truth_file": "real_report_3_gt.md",
+        "label": "Real Historical Lab Report",
+        "source": "india-medical-ocr-test"
+    },
+    "real_report_4.png": {
+        "ground_truth_file": "real_report_4_gt.md",
+        "label": "Real Historical Lab Report",
+        "source": "india-medical-ocr-test"
+    }
+}
