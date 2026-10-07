@@ -439,8 +439,9 @@ CLINICAL_RANGES = {
     "TSH":                {"low": 0.4,  "high": 4.5,  "unit": "mIU/L",     "critical_low": 0.01, "critical_high": 50.0},
     "Cholesterol":        {"low": 120,  "high": 200,  "unit": "mg/dL",     "critical_low": 80,   "critical_high": 400},
     "Ionized_Calcium":    {"low": 4.6,  "high": 5.3,  "unit": "mg/dL",     "critical_low": 3.8,  "critical_high": 6.5},
-    "Calcium":            {"low": 8.5,  "high": 10.2,  "unit": "mg/dL",     "critical_low": 7.0,  "critical_high": 12.0},
-    "GGT":                {"low": 9.0,  "high": 50.0,  "unit": "U/L",       "critical_low": 0.0,  "critical_high": 300.0},
+    "Calcium":            {"low": 8.5,  "high": 10.5, "unit": "mg/dL",     "critical_low": 7.0,  "critical_high": 12.0},
+    "GGT":                {"low": 9.0,  "high": 50.0, "unit": "U/L",       "critical_low": 0.0,  "critical_high": 300.0},
+
     "Albumin":            {"low": 3.5,  "high": 5.5,  "unit": "g/dL",      "critical_low": 2.0,  "critical_high": 6.5},
     "AG_Ratio":           {"low": 1.2,  "high": 2.2,  "unit": "ratio",     "critical_low": 0.6,  "critical_high": 3.5},
     "Total_Protein":      {"low": 6.0,  "high": 8.3,  "unit": "g/dL",      "critical_low": 4.5,  "critical_high": 10.0},
@@ -584,7 +585,7 @@ def run_rule_based_engine(values):
         else:
             primary_findings.append(f"Significant hypocalcemia (Ionized Ca {ion_ca} mg/dL)—urgent clinical review.")
     elif tot_ca is not None:
-        if tot_ca >= 8.5 and tot_ca <= 10.2:
+        if tot_ca >= 8.5 and tot_ca <= 10.5:
             pass
         elif tot_ca >= 8.0:
             primary_findings.append(f"Borderline hypocalcemia (Serum Ca {tot_ca} mg/dL)—monitor and correlate clinically.")
@@ -592,8 +593,9 @@ def run_rule_based_engine(values):
             primary_findings.append(f"Hypocalcemia (Serum Ca {tot_ca} mg/dL)—requires clinical correlation.")
         elif tot_ca < 7.0:
             primary_findings.append(f"Significant hypocalcemia (Serum Ca {tot_ca} mg/dL)—urgent clinical review.")
-        elif tot_ca > 10.2:
+        elif tot_ca > 10.5:
             primary_findings.append(f"Elevated Serum Calcium ({tot_ca} mg/dL) — Hypercalcaemia")
+
 
     # Gamma GT (GGT Tiers)
     if ggt is not None:
