@@ -259,7 +259,9 @@ def parse_biomarkers(text):
         "Calcium": None, "Ionized_Calcium": None, "GGT": None, "Albumin": None,
         "Globulin": None, "AG_Ratio": None, "Total_Protein": None, "ALT": None,
         "AST": None, "ALP": None, "Bilirubin": None, "Vitamin_D": None,
-        "Vitamin_B12": None, "Ferritin": None, "ESR": None, "eGFR": None
+        "Vitamin_B12": None, "Ferritin": None, "ESR": None, "eGFR": None,
+        "Urea": None, "Uric_Acid": None, "Phosphorus": None, "Sodium": None,
+        "Potassium": None, "Chloride": None
     }
     
     for line in lines:
@@ -294,6 +296,30 @@ def parse_biomarkers(text):
             val = extract_smart_biomarker(line, 0.1, 25.0, ["mg/dl", "mg%", "umol/l", "µmol/l"])
             if val is not None: extracted["Creatinine"] = val
 
+        if any(k in line for k in ["urea", "blood urea", "s. urea"]) and extracted["Urea"] is None:
+            val = extract_smart_biomarker(line, 2.0, 350.0, ["mg/dl", "mg%", "mmol/l"])
+            if val is not None: extracted["Urea"] = val
+
+        if any(k in line for k in ["uric acid", "urate"]) and extracted["Uric_Acid"] is None:
+            val = extract_smart_biomarker(line, 0.5, 25.0, ["mg/dl", "mg%", "umol/l"])
+            if val is not None: extracted["Uric_Acid"] = val
+
+        if any(k in line for k in ["phosphorus", "phosphate", "phos"]) and extracted["Phosphorus"] is None:
+            val = extract_smart_biomarker(line, 0.2, 20.0, ["mg/dl", "mg%", "mmol/l"])
+            if val is not None: extracted["Phosphorus"] = val
+
+        if any(k in line for k in ["sodium", "serum sodium"]) and extracted["Sodium"] is None:
+            val = extract_smart_biomarker(line, 80.0, 200.0, ["meq/l", "mmol/l"])
+            if val is not None: extracted["Sodium"] = val
+
+        if any(k in line for k in ["potassium", "serum potassium"]) and extracted["Potassium"] is None:
+            val = extract_smart_biomarker(line, 1.0, 12.0, ["meq/l", "mmol/l"])
+            if val is not None: extracted["Potassium"] = val
+
+        if any(k in line for k in ["chloride", "serum chloride"]) and extracted["Chloride"] is None:
+            val = extract_smart_biomarker(line, 50.0, 180.0, ["meq/l", "mmol/l"])
+            if val is not None: extracted["Chloride"] = val
+
         if any(k in line for k in ["egfr", "gfr", "estimated gfr"]) and extracted["eGFR"] is None:
             val = extract_smart_biomarker(line, 3.0, 200.0, ["ml/min", "ml/min/1.73", "ml/min/1.73m2"])
             if val is not None: extracted["eGFR"] = val
@@ -314,7 +340,7 @@ def parse_biomarkers(text):
                 else:
                     extracted["Ionized_Calcium"] = val
 
-        if any(k in line for k in ["calcium", "serum calcium", "ca"]) and not any(x in line for x in ["ionized", "ca++"]) and extracted["Calcium"] is None:
+        if any(k in line for k in ["calcium", "serum calcium", "total calcium"]) and not any(x in line for x in ["ionized", "ca++"]) and extracted["Calcium"] is None:
             val = extract_smart_biomarker(line, 3.0, 25.0, ["mg/dl", "mg%", "mmol/l"])
             if val is not None:
                 if 3.0 <= val <= 6.5 and extracted["Ionized_Calcium"] is None:
@@ -368,6 +394,8 @@ def parse_biomarkers(text):
 
         if any(k in line for k in ["ferritin"]) and extracted.get("Ferritin") is None:
             val = extract_smart_biomarker(line, 1.0, 5000.0, ["ng/ml", "ug/l", "pmol/l"])
+            if val is not None: extracted["Ferritin"] = val
+
             if val is not None: extracted["Ferritin"] = int(val)
 
         if any(k in line for k in ["esr", "erythrocyte sedimentation"]) and extracted.get("ESR") is None:

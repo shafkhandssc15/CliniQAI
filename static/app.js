@@ -1099,8 +1099,8 @@ function renderVoteBars(breakdown, allVotes) {
     };
 
     container.innerHTML = Object.entries(modelLabels).map(([key, meta]) => {
-        const info = breakdown[key];
-        const diag = info ? info.diagnosis : "—";
+        const info = breakdown ? breakdown[key] : null;
+        const diag = info ? (info.raw_diagnosis || info.diagnosis || (info.validated_conditions && info.validated_conditions.length ? info.validated_conditions.join(", ") : "Active")) : "—";
         const isOffline = !info;
         return `
         <div class="vote-bar-row ${isOffline ? "offline" : ""}">
@@ -1114,6 +1114,7 @@ function renderVoteBars(breakdown, allVotes) {
             <span class="vb-weight">${isOffline ? "—" : meta.pct + "%"}</span>
         </div>`;
     }).join("");
+
 }
 
 // ── 4-Model Consensus Cards ───────────────────────────────────────────

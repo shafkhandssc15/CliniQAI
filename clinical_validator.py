@@ -59,17 +59,20 @@ def classify_biomarker_severity(marker_name: str, val: Any, gender: str = "Male"
             return {"tier": "Severe", "label": "Significant hypocalcemia (< 4.0 mg/dL) — urgent clinical review.", "color": "#dc2626", "is_abnormal": True, "condition": "Severe Hypocalcemia"}
 
     # 2. Total Serum Calcium (mg/dL)
-    if marker_name in ("Calcium", "Serum_Calcium"):
+    if marker_name in ("Calcium", "Serum_Calcium", "Total_Calcium"):
         if val < 7.0:
             return {"tier": "Critical", "label": "Severe hypocalcemia (< 7.0 mg/dL) — urgent clinical review.", "color": "#dc2626", "is_abnormal": True, "condition": "Severe Hypocalcaemia"}
         elif val < 8.0:
             return {"tier": "Moderate", "label": "Hypocalcemia (7.0–7.9 mg/dL) — requires clinical correlation.", "color": "#ef4444", "is_abnormal": True, "condition": "Hypocalcaemia"}
         elif val < 8.5:
             return {"tier": "Mild", "label": "Borderline hypocalcemia (8.0–8.4 mg/dL) — monitor and correlate clinically.", "color": "#f59e0b", "is_abnormal": True, "condition": "Borderline Hypocalcaemia"}
-        elif val <= 10.2:
-            return {"tier": "Normal", "label": "Normal Serum Calcium (8.5–10.2 mg/dL)", "color": "#10b981", "is_abnormal": False, "condition": None}
+        elif val <= 10.5:
+            return {"tier": "Normal", "label": "Normal Serum Calcium (8.5–10.5 mg/dL)", "color": "#10b981", "is_abnormal": False, "condition": None}
+        elif val <= 11.5:
+            return {"tier": "Mild", "label": "Mild Hypercalcaemia (10.6–11.5 mg/dL)", "color": "#f59e0b", "is_abnormal": True, "condition": "Mild Hypercalcaemia"}
         else:
-            return {"tier": "Severe", "label": "Hypercalcaemia (> 10.2 mg/dL)", "color": "#dc2626", "is_abnormal": True, "condition": "Hypercalcaemia"}
+            return {"tier": "Severe", "label": "Severe Hypercalcaemia (> 11.5 mg/dL)", "color": "#dc2626", "is_abnormal": True, "condition": "Severe Hypercalcaemia"}
+
 
     # 3. Gamma GT (GGT) (U/L)
     if marker_name in ("GGT", "Gamma_GT", "GGTP"):
@@ -198,7 +201,31 @@ def classify_biomarker_severity(marker_name: str, val: Any, gender: str = "Male"
         else:
             return {"tier": "Normal", "label": "Desirable Cholesterol (< 200 mg/dL)", "color": "#10b981", "is_abnormal": False, "condition": None}
 
+    # 13. Phosphorus / Phosphate (mg/dL)
+    if marker_name in ("Phosphorus", "Phosphate", "Phos"):
+        if val < 2.4:
+            return {"tier": "Moderate", "label": f"Low Serum Phosphorus ({val} mg/dL, < 2.4)", "color": "#ef4444", "is_abnormal": True, "condition": "Hypophosphatemia"}
+        elif val > 5.1:
+            return {"tier": "Moderate", "label": f"Elevated Serum Phosphorus ({val} mg/dL, > 5.1)", "color": "#ef4444", "is_abnormal": True, "condition": "Hyperphosphatemia"}
+        else:
+            return {"tier": "Normal", "label": "Normal Serum Phosphorus (2.4–5.1 mg/dL)", "color": "#10b981", "is_abnormal": False, "condition": None}
+
+    # 14. Urea (mg/dL)
+    if marker_name in ("Urea", "Blood_Urea"):
+        if val > 43.0:
+            return {"tier": "Moderate", "label": f"Elevated Blood Urea ({val} mg/dL, > 43)", "color": "#ef4444", "is_abnormal": True, "condition": "Impaired Renal Function"}
+        else:
+            return {"tier": "Normal", "label": "Normal Blood Urea (13–43 mg/dL)", "color": "#10b981", "is_abnormal": False, "condition": None}
+
+    # 15. Uric Acid (mg/dL)
+    if marker_name in ("Uric_Acid", "Urate"):
+        if val > 7.2:
+            return {"tier": "Moderate", "label": f"Elevated Uric Acid ({val} mg/dL, > 7.2)", "color": "#ef4444", "is_abnormal": True, "condition": "Hyperuricemia"}
+        else:
+            return {"tier": "Normal", "label": "Normal Uric Acid (3.5–7.2 mg/dL)", "color": "#10b981", "is_abnormal": False, "condition": None}
+
     return None
+
 
 
 def classify_all_biomarkers(values: Dict[str, Any], extracted_flags: Dict[str, bool], gender: str = "Male") -> List[dict]:
