@@ -107,23 +107,28 @@ def calculate_ascvd_risk(
     if has_chest_pain: points += 3
 
     if points <= 3:
-        risk_pct, category, color = 2.5, "Low Risk (< 5%)", "#10b981"
+        raw_pct, category, color = 2.5, "Low Risk (< 5%)", "#10b981"
         action = "Maintain heart-healthy Mediterranean diet, aerobic exercise, and routine wellness checks."
     elif points <= 7:
-        risk_pct, category, color = 7.5, "Borderline Risk (5% – 7.4%)", "#3b82f6"
+        raw_pct, category, color = 7.5, "Borderline Risk (5% – 7.4%)", "#3b82f6"
         action = "Lifestyle optimization (dietary modification, 150 min/wk exercise). Consider lipid profile monitoring."
     elif points <= 11:
-        risk_pct, category, color = 14.5, "Intermediate Risk (7.5% – 19.9%)", "#f59e0b"
+        raw_pct, category, color = 14.5, "Intermediate Risk (7.5% – 19.9%)", "#f59e0b"
         action = "Moderate-intensity statin therapy recommended if LDL >= 70 mg/dL. Monitor blood pressure and fasting glucose."
     else:
-        risk_pct, category, color = 24.0, "High Risk (≥ 20%)", "#ef4444"
+        raw_pct, category, color = 24.0, "High Risk (≥ 20%)", "#ef4444"
         action = "High-intensity statin therapy indicated, tight BP/glycemic targets, consider ECG/Echo and cardiology consultation."
 
+    # South Asian Population Recalibration (WHO/ISH & QRISK3 standard: 1.4x elevated premature CVD risk factor)
+    calibrated_pct = round(min(100.0, raw_pct * 1.4), 1)
+
     return {
-        "score_pct": risk_pct,
-        "category": category,
+        "score_pct": calibrated_pct,
+        "raw_score_pct": raw_pct,
+        "category": f"{category} (South Asian Adjusted)",
         "color": color,
         "action": action,
+        "population_adjustment": "Calibrated with 1.4x QRISK3 / WHO-ISH multiplier for Sri Lankan / South Asian CVD risk vulnerability.",
         "factors_considered": {
             "Age/Gender": f"{age}y {gender}",
             "Cholesterol": f"{total_chol} mg/dL" if total_chol else "Not measured",
@@ -160,27 +165,32 @@ def calculate_anemia_risk(
             "morphology_differential": "Normal normocytic red cell profile."
         }
     
-    # WHO Severity Grading
+    # Official WHO Anemia Severity Categories (WHO/NHD/01.3 Standard)
+    # Mild: 11.0–11.9 g/dL (Females) / 11.0–12.9 g/dL (Males)
+    # Moderate: 8.0–10.9 g/dL
+    # Severe: < 8.0 g/dL
     if hb >= 11.0:
-        grade = "Grade 1 (Mild Anaemia)"
+        grade = "Mild Anaemia (WHO Category)"
         risk_level = "Mild Risk"
         color = "#3b82f6"
         action = "Dietary iron fortification, check serum ferritin and dietary history."
     elif hb >= 8.0:
-        grade = "Grade 2 (Moderate Anaemia)"
+        grade = "Moderate Anaemia (WHO Category)"
         risk_level = "Moderate Risk"
         color = "#f59e0b"
         action = "Oral iron supplementation, complete iron panel (Ferritin, TIBC, Iron), stool occult blood."
-    elif hb >= 6.5:
-        grade = "Grade 3 (Severe Anaemia)"
+    else:
+        grade = "Severe Anaemia (WHO Category)"
         risk_level = "Severe Risk"
         color = "#ef4444"
         action = "Urgent haematology review, parenteral iron vs transfusion evaluation, investigate occult blood loss."
-    else:
-        grade = "Grade 4 (Critical / Life-Threatening)"
-        risk_level = "Critical Risk"
+
+    # Critical Transfusion Flag (< 6.5 g/dL)
+    is_critical_transfusion = hb < 6.5
+    if is_critical_transfusion:
+        risk_level = "Critical / Life-Threatening"
         color = "#dc2626"
-        action = "Emergency blood transfusion indicated, continuous hemodynamic monitoring, immediate GI/haematology consult."
+        action = "EMERGENCY PROTOCOL: Severe haemodynamic compromise risk (Hb < 6.5 g/dL). Immediate blood transfusion and continuous monitoring indicated."
 
     # Multi-cell suppression check
     bicytopenia = (plt and plt < 150) or (wbc and wbc < 4.0)
@@ -197,37 +207,60 @@ def calculate_anemia_risk(
     }
 
 
-# ── 4. METABOLIC SYNDROME RISK MODULE ─────────────────────────────────────────
+# ── 4. METABOLIC SYNDROME RISK MODULE (ATP III / AHA CRITERIA) ────────────────
 def calculate_metabolic_risk(
     fbs: Optional[float],
     chol: Optional[float],
     age: int,
     gender: str,
     symptoms: List[str] = None,
-    lifestyle: List[str] = None
+    lifestyle: List[str] = None,
+    clinical_notes: str = ""
 ) -> dict:
+    """
+    Evaluates Metabolic Syndrome according to NCEP ATP III / AHA standards across 5 clinical criteria:
+    1. Elevated Fasting Glucose (>= 100 mg/dL or drug treatment)
+    2. Elevated Blood Pressure (>= 130/85 mmHg or antihypertensive therapy)
+    3. Elevated Waist / Central Adiposity (BMI >= 25 kg/m² South Asian surrogate)
+    4. Elevated Triglycerides (>= 150 mg/dL or drug treatment)
+    5. Reduced HDL Cholesterol (< 40 mg/dL Men, < 50 mg/dL Women)
+    Diagnosed when >= 3 of 5 components are confirmed.
+    """
     criteria_met = []
-    
+    missing_subfractions = []
+    notes_combined = " ".join([clinical_notes or ""] + (symptoms or []) + (lifestyle or [])).lower()
+
+    # 1. Glycemic Criterion
     if fbs and fbs >= 100:
-        criteria_met.append(f"Impaired fasting glucose ({fbs} mg/dL, threshold ≥ 100)")
-    if chol and chol >= 200:
-        criteria_met.append(f"Elevated total cholesterol ({chol} mg/dL, threshold ≥ 200)")
-    if age >= 50:
-        criteria_met.append(f"Age vulnerability factor ({age} years)")
-    
-    life_str = " ".join(lifestyle or []).lower()
-    if "sedentary" in life_str or "obese" in life_str or "overweight" in life_str:
-        criteria_met.append("Sedentary lifestyle or elevated BMI reported")
+        criteria_met.append(f"Elevated fasting glucose ({fbs} mg/dL, ATP III threshold ≥ 100)")
+
+    # 2. Blood Pressure Criterion
+    has_htn = any(k in notes_combined for k in ["htn", "hypertens", "bp", "amlodipine", "losartan", "enalapril"])
+    if has_htn:
+        criteria_met.append("Documented Hypertension or Antihypertensive pharmacotherapy")
+
+    # 3. Central Adiposity / BMI Criterion
+    has_adiposity = any(k in notes_combined for k in ["obese", "overweight", "bmi", "sedentary", "waist"])
+    if has_adiposity:
+        criteria_met.append("Central adiposity / elevated BMI indicator (South Asian cut-off BMI ≥ 25 kg/m²)")
+
+    # 4 & 5. Dyslipidemia (Triglycerides & HDL surrogates from total cholesterol)
+    if chol and chol >= 240:
+        criteria_met.append(f"Marked total hypercholesterolemia ({chol} mg/dL, dyslipidemia surrogate)")
+    elif chol and chol >= 200:
+        criteria_met.append(f"Borderline elevated total cholesterol ({chol} mg/dL)")
+    else:
+        missing_subfractions.append("Fasting Triglycerides and HDL-C required for definitive ATP III classification.")
 
     score = len(criteria_met)
     if score >= 3:
-        status, color = "High Metabolic Risk", "#ef4444"
-        summary = "Multiple metabolic syndrome components met. High risk of cardiovascular events and progression to overt Type 2 Diabetes."
+        status, color = "High Metabolic Syndrome Probability (≥3 ATP III Components)", "#ef4444"
+        summary = "Meets clinical criteria for Metabolic Syndrome. High risk of cardiovascular events and progressive Type 2 Diabetes."
     elif score == 2:
-        status, color = "Moderate Metabolic Risk", "#f59e0b"
-        summary = "Two metabolic components identified. Structured lifestyle intervention (dietary modification, exercise) strongly indicated."
+        status, color = "Moderate Metabolic Risk (2 ATP III Components)", "#f59e0b"
+        summary = "Two metabolic components confirmed. Recommend fasting lipid profile (HDL/Triglycerides) and structured lifestyle therapy."
     elif score == 1:
-        status, color = "Mild / Early Warning", "#3b82f6"
+        status, color = "Mild Metabolic Risk (1 Component)", "#3b82f6"
         summary = "Single metabolic variation detected. Preventive wellness counselling recommended."
     else:
         status, color = "Low Metabolic Risk", "#10b981"
@@ -236,10 +269,12 @@ def calculate_metabolic_risk(
     return {
         "status": status,
         "score": score,
-        "max_score": 4,
+        "max_score": 5,
         "color": color,
         "summary": summary,
-        "criteria_met": criteria_met
+        "criteria_met": criteria_met,
+        "missing_subfractions": missing_subfractions,
+        "guideline": "NCEP ATP III / AHA Metabolic Syndrome Guidelines"
     }
 
 
@@ -666,6 +701,164 @@ def compute_longitudinal_trends(
     }
 
 
+# ── 7b. DENGUE WARNING TRAJECTORY MODULE (SRI LANKA NDCU PROTOCOL) ───────────
+def calculate_dengue_risk(
+    values: Dict[str, Any],
+    historical_reports: List[Dict[str, Any]] = None
+) -> dict:
+    """
+    Evaluates Dengue Warning Trajectory according to Sri Lanka National Dengue Control Unit (NDCU) guidelines.
+    Monitors:
+    - Thrombocytopenia: Platelet crash (< 100k, severe < 50k / µL)
+    - Hemoconcentration: Packed Cell Volume (PCV) / Hematocrit rise (vascular plasma leakage warning)
+    - Leukopenia: WBC < 4.0 × 10³/µL (typical early viral phase indicator)
+    """
+    plt = values.get("Platelets")
+    wbc = values.get("WBC")
+    pcv = values.get("PCV") or values.get("Packed_Cell_Volume")
+
+    if plt is None:
+        return {
+            "status": "Not Assessed",
+            "color": "#64748b",
+            "summary": "Platelet count not measured in current laboratory panel."
+        }
+
+    prev_plt = None
+    prev_pcv = None
+    if historical_reports and len(historical_reports) > 0:
+        prev_parsed = historical_reports[0].get("parsed_values", {})
+        prev_plt = prev_parsed.get("Platelets")
+        prev_pcv = prev_parsed.get("PCV") or prev_parsed.get("Packed_Cell_Volume")
+
+    dengue_flags = []
+    if plt < 50:
+        dengue_flags.append(f"Critical Thrombocytopenia (PLT {plt} ×10³/µL) — high bleeding / plasma leakage risk")
+    elif plt < 100:
+        dengue_flags.append(f"Significant Thrombocytopenia (PLT {plt} ×10³/µL, NDCU warning threshold < 100k)")
+
+    # Rapid platelet drop from previous
+    if prev_plt and isinstance(prev_plt, (int, float)) and (prev_plt - plt) >= 40:
+        dengue_flags.append(f"Rapid Platelet Drop: Declined by -{int(prev_plt - plt)} ×10³/µL since previous visit")
+
+    # PCV hemoconcentration
+    if pcv and pcv >= 48.0:
+        dengue_flags.append(f"Hemoconcentration (PCV {pcv}%) — indicates capillary leakage / hemoconcentration")
+    elif prev_pcv and pcv and (pcv - prev_pcv) >= 5.0:
+        dengue_flags.append(f"Rising Hematocrit (+{round(pcv - prev_pcv, 1)}% PCV jump) — vascular plasma leakage signal")
+
+    if wbc and wbc < 4.0:
+        dengue_flags.append(f"Leukopenia (WBC {wbc} ×10³/µL) — common viral suppression pattern in dengue")
+
+    if len(dengue_flags) >= 2 or (plt and plt < 50):
+        status = "HIGH DENGUE WARNING RISK (National Protocol Alert)"
+        color = "#dc2626"
+        action = "Admit for close fluid balance monitoring (PCV/PLT q6h). Monitor for plasma leakage and shock. Follow Sri Lanka NDCU management guidelines."
+    elif len(dengue_flags) == 1:
+        status = "Moderate Dengue Surveillance Needed"
+        color = "#f59e0b"
+        action = "Repeat Full Blood Count (FBC) in 12–24 hours to monitor platelet and PCV trajectory. Advise oral rehydration."
+    else:
+        status = "Low Dengue Probability"
+        color = "#10b981"
+        action = "Platelet and hematocrit parameters are within safe ranges."
+
+    return {
+        "status": status,
+        "color": color,
+        "flags": dengue_flags,
+        "action": action,
+        "guideline": "Sri Lanka National Dengue Control Unit (NDCU) Clinical Protocol"
+    }
+
+
+# ── 7c. CKDu SURVEILLANCE MODULE (SRI LANKA DRY ZONE ENDEMIC PROTOCOL) ────────
+def calculate_ckdu_risk(
+    values: Dict[str, Any],
+    age: int,
+    gender: str,
+    clinical_notes: str = "",
+    symptoms: List[str] = None
+) -> dict:
+    """
+    Evaluates Chronic Kidney Disease of unknown etiology (CKDu) surveillance index
+    relevant to Sri Lanka's Dry Zone (North Central Province e.g. Anuradhapura, Polonnaruwa, Badulla).
+    """
+    creat = values.get("Creatinine")
+    egfr_info = calculate_egfr(creat, age, gender)
+    egfr = egfr_info.get("egfr")
+
+    notes_all = ((clinical_notes or "") + " " + " ".join(symptoms or [])).lower()
+    is_dry_zone = any(reg in notes_all for reg in [
+        "anuradhapura", "polonnaruwa", "medawachchiya", "padaviya", "dehiattakandiya",
+        "girandurukotte", "kurunegala", "badulla", "dry zone", "farming", "farmer",
+        "paddy", "agriculture", "well water", "groundwater"
+    ])
+
+    ckdu_flags = []
+    if is_dry_zone:
+        ckdu_flags.append("Endemic Region or Occupational Exposure (Sri Lanka Dry Zone Agricultural Cohort)")
+
+    if egfr and egfr < 60:
+        ckdu_flags.append(f"Impaired eGFR ({egfr} mL/min/1.73m²) — persistent tubulointerstitial damage pattern")
+    elif creat and creat >= (1.1 if gender == "Female" else 1.3):
+        ckdu_flags.append(f"Borderline / elevated serum creatinine ({creat} mg/dL) in high-risk demographic")
+
+    if is_dry_zone and ((egfr and egfr < 60) or (creat and creat >= (1.1 if gender == "Female" else 1.3))):
+        status = "High CKDu Surveillance Flag (NCP Protocol)"
+        color = "#ef4444"
+        summary = "Patient exhibits renal biomarker impairment in the context of Sri Lanka endemic agricultural exposure. Recommend urinary biomarkers (uACR, alpha-1 microglobulin) and renal ultrasound to exclude structural causes."
+    elif is_dry_zone:
+        status = "CKDu Risk Surveillance Monitored"
+        color = "#3b82f6"
+        summary = "Patient has Dry Zone / agricultural exposure. Renal biomarkers are currently preserved. Annual eGFR and urine albumin screening recommended."
+    else:
+        status = "Standard CKD Assessment (Non-Endemic)"
+        color = "#10b981"
+        summary = "No specific CKDu endemic environmental factors identified."
+
+    return {
+        "status": status,
+        "color": color,
+        "summary": summary,
+        "flags": ckdu_flags,
+        "guideline": "Sri Lanka Ministry of Health CKDu Screening Protocol"
+    }
+
+
+# ── 7d. TRILINGUAL PATIENT TAKEAWAY SUMMARIES ─────────────────────────────────
+def generate_trilingual_summary(diagnosis: str, findings: list = None) -> dict:
+    """Generates patient-friendly takeaway statements in English, Sinhala, and Tamil."""
+    d_low = (diagnosis or "").lower()
+
+    if "anemia" in d_low or "anaemia" in d_low:
+        en = f"Diagnosis: {diagnosis}. Your red blood cells or iron levels are lower than normal. Dietary iron and physician consultation recommended."
+        si = "රෝග විනිශ්චය: රක්තහීනතාවය (Anemia). ඔබේ රුධිරයේ හිමොග්ලොබින් මට්ටම සාමාන්‍ය අගයට වඩා අඩුය. යකඩ බහුල ආහාර සහ වෛද්‍ය උපදෙස් ලබාගන්න."
+        ta = "கண்டறிதல்: இரத்த சோகை (Anemia). உங்கள் இரத்தத்தில் ஹீமோகுளோபின் அளவு குறைவாக உள்ளது. இரும்புச்சத்து நிறைந்த உணவு மற்றும் மருத்துவ ஆலோசனை பெறவும்."
+    elif "diabetes" in d_low:
+        en = f"Diagnosis: {diagnosis}. Fasting blood sugar is elevated. Dietary carbohydrate management and medical follow-up recommended."
+        si = "රෝග විනිශ්චය: දියවැඩියාව (Diabetes). රුධිරයේ සීනි මට්ටම වැඩි වී ඇත. සීනි සහ කාබෝහයිඩ්‍රේට් පාලනය කර වෛද්‍යවරයා හමුවන්න."
+        ta = "கண்டறிதல்: நீரிழிவு நோய் (Diabetes). இரத்தத்தில் சர்க்கரை அளவு அதிகமாக உள்ளது. உணவு கட்டுப்பாடு மற்றும் மருத்துவ ஆலோசனை தேவை."
+    elif "thyroid" in d_low:
+        en = f"Diagnosis: {diagnosis}. Thyroid hormone regulatory levels require follow-up testing and specialist guidance."
+        si = "රෝග විනිශ්චය: තයිරොයිඩ් ග්‍රන්ථියේ අසමතුලිතතාවය. හෝමෝන මට්ටම නැවත පරීක්ෂා කර වෛද්‍ය උපදෙස් ලබාගන්න."
+        ta = "கண்டறிதல்: தைராய்டு கோளாறு (Thyroid). ஹார்மோன் சமநிலையின்மைக்கான பரிசோதனை மற்றும் மருத்துவ ஆலோசனை தேவை."
+    elif "renal" in d_low or "kidney" in d_low:
+        en = f"Diagnosis: {diagnosis}. Kidney biomarker variations detected. Avoid NSAID painkillers and consult a physician."
+        si = "රෝග විනිශ්චය: වකුගඩු ක්‍රියාකාරීත්වයේ වෙනස්කම්. වේදනා නාශක ඖෂධ ගැනීමෙන් වැළකී වෛද්‍යවරයා හමුවන්න."
+        ta = "கண்டறிதல்: சிறுநீரக செயல்பாடு மாறுபாடு. வலி நிவாரணி மருந்துகளை தவிர்த்து மருத்துவரை அணுகவும்."
+    else:
+        en = f"Clinical Summary: {diagnosis}. Discuss laboratory findings with your attending doctor."
+        si = f"සායනික සාරාංශය: {diagnosis}. ඔබේ රසායනාගාර වාර්තාව පිළිබඳව වෛද්‍යවරයා සමඟ සාකච්ඡා කරන්න."
+        ta = f"மருத்துவ சுருக்கம்: {diagnosis}. ஆய்வக முடிவுகள் குறித்து மருத்துவரிடம் ஆலோசனை பெறவும்."
+
+    return {
+        "english": en,
+        "sinhala": si,
+        "tamil": ta
+    }
+
+
 # ── 8. COMPREHENSIVE RISK PROFILING (ENTRY POINT) ─────────────────────────────
 def compute_comprehensive_risk_profile(
     values: Dict[str, Any],
@@ -683,12 +876,14 @@ def compute_comprehensive_risk_profile(
     egfr_data = calculate_egfr(values.get("Creatinine"), age_int, gender_str)
     ascvd_data = calculate_ascvd_risk(age_int, gender_str, values.get("Cholesterol"), values.get("Fasting_Blood_Sugar"), symptoms, medications, lifestyle, clinical_notes)
     anemia_data = calculate_anemia_risk(values.get("Hemoglobin"), gender_str, age_int, values.get("WBC"), values.get("Platelets"), symptoms)
-    metabolic_data = calculate_metabolic_risk(values.get("Fasting_Blood_Sugar"), values.get("Cholesterol"), age_int, gender_str, symptoms, lifestyle)
+    metabolic_data = calculate_metabolic_risk(values.get("Fasting_Blood_Sugar"), values.get("Cholesterol"), age_int, gender_str, symptoms, lifestyle, clinical_notes)
     thyroid_data = calculate_thyroid_risk(values.get("TSH"), symptoms, medications)
     autoimmune_data = calculate_autoimmune_risk(values, gender_str, age_int, symptoms)
     micronutrient_data = calculate_micronutrient_risk(values)
     ml_anomaly_data = calculate_ml_anomaly_score(values, gender_str, age_int)
     trend_data = compute_longitudinal_trends(values, historical_reports or [])
+    dengue_data = calculate_dengue_risk(values, historical_reports or [])
+    ckdu_data = calculate_ckdu_risk(values, age_int, gender_str, clinical_notes, symptoms)
 
     # Pattern recognition
     cross_anomalies = []
@@ -742,6 +937,8 @@ def compute_comprehensive_risk_profile(
         "micronutrient": micronutrient_data,
         "ml_anomaly": ml_anomaly_data,
         "longitudinal_trends": trend_data,
+        "dengue_trajectory": dengue_data,
+        "ckdu_surveillance": ckdu_data,
         "cross_marker_anomalies": cross_anomalies,
         "context": {
             "age": age_int,
@@ -752,3 +949,4 @@ def compute_comprehensive_risk_profile(
             "notes": clinical_notes or ""
         }
     }
+

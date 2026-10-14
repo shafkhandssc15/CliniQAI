@@ -509,7 +509,41 @@ def validate_condition_against_biomarkers(
     return True, None
 
 
-# ── 4. CALIBRATED ENSEMBLE CONSENSUS WITH DISAGREEMENT PENALTY ────────────────
+def get_recommended_confirmatory_tests(parsed_values: dict, extracted_flags: dict, biomarker_severities: list) -> list:
+    """Recommends actionable next confirmatory diagnostic tests to resolve clinical discordance or confirm pathology."""
+    recs = []
+    fbs = parsed_values.get("Fasting_Blood_Sugar")
+    hb = parsed_values.get("Hemoglobin")
+    creat = parsed_values.get("Creatinine")
+    plt = parsed_values.get("Platelets")
+    tsh = parsed_values.get("TSH")
+    chol = parsed_values.get("Cholesterol")
+    vit_d = parsed_values.get("Vitamin_D")
+    wbc = parsed_values.get("WBC")
+
+    if fbs is not None and (100 <= fbs <= 125 or fbs >= 126):
+        recs.append("HbA1c (Glycated Haemoglobin) or 75g 2-hour Oral Glucose Tolerance Test (OGTT) for definitive glycemic staging.")
+    if hb is not None and hb < 13.0:
+        recs.append("Serum Ferritin, Iron Profile (TIBC + Transferrin Saturation), and Peripheral Blood Film (PBF) to distinguish microcytic causes.")
+    if creat is not None and creat >= 1.1:
+        recs.append("Repeat Serum Creatinine with CKD-EPI eGFR and early-morning Urine Albumin-to-Creatinine Ratio (uACR) for nephropathy staging.")
+    if plt is not None and plt < 150:
+        recs.append("Serial Full Blood Count (FBC) within 24–48 hours to evaluate platelet trajectory and Dengue NS1 antigen / IgM-IgG if acute fever.")
+    if tsh is not None and (tsh > 4.5 or tsh < 0.4):
+        recs.append("Free T4 (FT4), Free T3 (FT3), and Anti-TPO / Anti-Thyroglobulin antibodies to assess thyroid autoimmune etiology.")
+    if chol is not None and chol >= 200:
+        recs.append("Fasting Lipid Profile (Total Cholesterol, Triglycerides, HDL-C, Calculated LDL-C) following 12-hour fast.")
+    if vit_d is not None and vit_d < 30:
+        recs.append("Serum Calcium, Phosphate, Alkaline Phosphatase, and repeat 25-OH Vitamin D after 8–12 weeks of therapeutic supplementation.")
+    if wbc is not None and (wbc > 11.0 or wbc < 4.0):
+        recs.append("Differential Leukocyte Count (DLC), C-Reactive Protein (CRP), and Peripheral Blood Smear for toxic granulation or reactive atypia.")
+
+    if not recs:
+        recs.append("Repeat baseline laboratory panel in 3–6 months or order organ-specific panel aligned with primary clinical symptoms.")
+    return recs
+
+
+# ── 4. CALIBRATED ENSEMBLE CONSENSUS WITH DISAGREEMENT PENALTY & RULES VETO ──
 def compute_validated_ensemble(
     m1_rules: dict,
     m2_ml: dict,
@@ -524,9 +558,9 @@ def compute_validated_ensemble(
     """
     Arbitrates consensus across 4 models with:
     1. Calibrated Model Weights: Gemini (40%), NIM (20%), XGBoost (25%), Rules (15%)
-    2. Strict Disease Flagging Rules (≥ 2 related biomarkers for multi-system disease)
+    2. Rules Engine Veto & Safety Escalation Layer (critical lab boundaries always override probabilistic voting)
     3. Model Disagreement Penalty (caps confidence at 60–70% when models conflict)
-    4. Nuanced Primary Findings vs Strong Disease Labels
+    4. Explicit Consensus Abstention when evidence is thin or discordant, paired with next confirmatory test advice
     5. Actionable Follow-up Plans
     """
     WEIGHTS = {
@@ -599,7 +633,6 @@ def compute_validated_ensemble(
                 all_stripped_reasons.append(f"[{key}] Overruled '{cond}': {reject_reason}")
 
         # Post-processing calibration for NIM (Model 3)
-        # If NIM predicts strong disease but XGBoost + Rules say Healthy/Normal, downgrade NIM
         if key == "model_3_nvidia" and not lab_pathologies:
             if m2_ml.get("diagnosis") in ("Healthy", "Normal") and m1_rules.get("diagnosis") in ("Healthy", "Normal", "No significant abnormalities detected"):
                 downgraded_conditions = [c for c in valid_conditions if "disease" not in c.lower() and "chronic" not in c.lower()]
@@ -628,8 +661,7 @@ def compute_validated_ensemble(
             condition_weights[c] = condition_weights.get(c, 0.0) + w
 
     # 3. ── DIAGNOSIS PRIORITIZATION ENGINE & ARBITRATION ──
-    # If ground-truth laboratory biomarkers show pathology (e.g. Vitamin D deficiency, Anemia, Diabetes),
-    # HARD OVERRIDE any conservative "Healthy" / "Normal" votes!
+    # If ground-truth laboratory biomarkers show pathology, HARD OVERRIDE any conservative "Healthy" / "Normal" votes
     if lab_pathologies or mild_findings:
         for normal_term in ["Healthy", "Normal", "No major abnormalities detected", "No significant abnormalities detected"]:
             if normal_term in condition_weights:
@@ -649,6 +681,9 @@ def compute_validated_ensemble(
             "primary_diagnosis": "No major abnormalities detected",
             "confidence": 95.0,
             "confidence_band": "HIGH",
+            "is_abstaining": False,
+            "rules_veto_applied": False,
+            "recommended_tests": ["Routine health screening panel annually or as advised by physician."],
             "vote_breakdown": validated_model_votes,
             "all_votes": {"No major abnormalities detected": 100.0},
             "safety_flags": [],
@@ -658,8 +693,7 @@ def compute_validated_ensemble(
             "stripped_hallucinations": all_stripped_reasons
         }
 
-    # 5. ── DISAGREEMENT PENALTY CALCULATION ──
-    # Compute variance / spread across models (0, 1, 2)
+    # 5. ── DISAGREEMENT PENALTY & RULES VETO CALCULATION ──
     scores = list(model_severity_scores.values())
     disagreement_detected = False
     disagreement_factor = 0.0
@@ -674,8 +708,16 @@ def compute_validated_ensemble(
             disagreement_factor = min(0.35, round(variance * 0.25, 2))
             arbitration_notes.append("Ensemble Disagreement Penalty Applied: Model outputs show partial discordance; confidence calibrated to decision-support range.")
 
+    # Rules Engine Veto & Safety Escalation Layer
+    rules_veto_applied = False
+    if has_critical:
+        rules_veto_applied = True
+        arbitration_notes.insert(0, "CRITICAL CLINICAL VETO: Rules engine safety layer intervened. Life-threatening laboratory threshold detected; probabilistic voting superseded.")
+
     # Compute base confidence
-    if has_critical or has_severe:
+    if has_critical:
+        base_conf = 99.0
+    elif has_severe:
         base_conf = 95.0
     elif has_moderate:
         base_conf = 88.0
@@ -684,9 +726,12 @@ def compute_validated_ensemble(
         base_conf = min(92.0, max(55.0, avg_w * 100.0))
 
     # Apply disagreement penalty
-    if disagreement_detected:
+    if disagreement_detected and not rules_veto_applied:
         confidence_pct = round(min(68.0, base_conf * (1.0 - disagreement_factor)), 1)
         band = "MODERATE"
+    elif rules_veto_applied:
+        confidence_pct = 99.0
+        band = "CRITICAL / HIGH"
     else:
         confidence_pct = round(base_conf, 1)
         band = "HIGH" if confidence_pct >= 80.0 else "MODERATE" if confidence_pct >= 65.0 else "INCONCLUSIVE"
@@ -694,6 +739,14 @@ def compute_validated_ensemble(
     # Build final prioritized primary diagnosis string
     prioritized_conditions = []
     seen_lower = set()
+
+    # Critical findings always head the diagnosis list
+    for s in biomarker_severities:
+        if s.get("tier") == "Critical" and s.get("condition"):
+            cond = s["condition"]
+            if cond.lower() not in seen_lower:
+                seen_lower.add(cond.lower())
+                prioritized_conditions.append(cond)
 
     for lp in lab_pathologies:
         if lp.lower() not in seen_lower:
@@ -712,18 +765,40 @@ def compute_validated_ensemble(
 
     primary_diagnosis = ", ".join(prioritized_conditions[:3]) if prioritized_conditions else "Clinical Correlation Required"
 
+    # 6. ── CONSENSUS ABSTENTION & NEXT-TEST GUIDANCE ──
+    is_abstaining = False
+    recommended_tests = get_recommended_confirmatory_tests(parsed_values, extracted_flags, biomarker_severities)
+
+    if disagreement_detected and not has_critical and not has_severe and (len(lab_pathologies) == 0 or confidence_pct < 60.0):
+        is_abstaining = True
+        primary_diagnosis = "Inconclusive / Consensus Abstention (Confirmatory Testing Required)"
+        arbitration_notes.append("System Abstention: High inter-model discordance without definitive critical lab pathology. System abstains from asserting definitive primary diagnosis.")
+
     # Generate clinical action plans
     action_plans = generate_clinical_action_plans(biomarker_severities)
+
+    # Compile safety flags
+    safety_flags = []
+    if rules_veto_applied:
+        safety_flags.append("CRITICAL CLINICAL VETO: Urgent medical attention required. Emergency lab cutoff breached.")
+    elif confidence_pct < 70.0:
+        safety_flags.append("Moderate confidence — models show partial disagreement; findings require clinical correlation.")
+    if is_abstaining:
+        safety_flags.append("Consensus Abstention Active: Order confirmatory investigations before initiating treatment.")
 
     return {
         "primary_diagnosis": primary_diagnosis,
         "confidence": confidence_pct,
         "confidence_band": band,
+        "is_abstaining": is_abstaining,
+        "rules_veto_applied": rules_veto_applied,
+        "recommended_tests": recommended_tests,
         "vote_breakdown": validated_model_votes,
         "all_votes": {k: round((v / max(active_weight, 0.01)) * 100.0, 1) for k, v in condition_weights.items()},
-        "safety_flags": [] if confidence_pct >= 70.0 else ["Moderate confidence — models show partial disagreement; findings require clinical correlation."],
+        "safety_flags": safety_flags,
         "biomarker_severities": biomarker_severities,
         "action_plans": action_plans,
         "arbitration_notes": arbitration_notes,
         "stripped_hallucinations": list(dict.fromkeys(all_stripped_reasons))
     }
+

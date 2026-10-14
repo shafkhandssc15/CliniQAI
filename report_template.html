@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CliniQ AI — Complete Project Analysis & Technical Audit Report</title>
+<style>
+    @page {
+        size: A4;
+        margin: 16mm 16mm 18mm 16mm;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body {
+        font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+        color: #1e293b;
+        background: #ffffff;
+        line-height: 1.5;
+        font-size: 9.5pt;
+    }
+
+    /* Typography */
+    h1, h2, h3, h4, h5 {
+        color: #0f172a;
+        font-weight: 700;
+        line-height: 1.25;
+    }
+
+    h1 { font-size: 22pt; letter-spacing: -0.5px; }
+    h2 { 
+        font-size: 13.5pt; 
+        border-bottom: 2px solid #e2e8f0; 
+        padding-bottom: 4px; 
+        margin-top: 14pt; 
+        margin-bottom: 8pt;
+        color: #0369a1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    h3 { font-size: 11pt; margin-top: 10pt; margin-bottom: 5pt; color: #0f172a; }
+    h4 { font-size: 9.5pt; font-weight: 600; color: #334155; margin-top: 8pt; margin-bottom: 3pt; }
+
+    p {
+        margin-bottom: 7pt;
+        text-align: justify;
+    }
+
+    ul, ol {
+        margin-left: 18px;
+        margin-bottom: 8pt;
+    }
+
+    li {
+        margin-bottom: 3pt;
+    }
+
+    /* Code & Pre */
+    code, pre {
+        font-family: 'Consolas', 'Courier New', monospace;
+    }
+    
+    code {
+        background: #f1f5f9;
+        color: #0f172a;
+        padding: 1px 4px;
+        border-radius: 3px;
+        font-size: 8.5pt;
+        border: 1px solid #e2e8f0;
+    }
+
+    pre {
+        background: #0f172a;
+        color: #f8fafc;
+        padding: 7pt 9pt;
+        border-radius: 6px;
+        font-size: 8pt;
+        overflow-x: auto;
+        margin-bottom: 8pt;
+        line-height: 1.4;
+    }
+
+    /* Layout Elements */
+    .page-break {
+        page-break-after: always;
+    }
+
+    .avoid-break {
+        page-break-inside: avoid;
+    }
+
+    /* Cover Page */
+    .cover-page {
+        padding-top: 25pt;
+        padding-bottom: 15pt;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .cover-header {
+        border-bottom: 3px solid #0284c7;
+        padding-bottom: 14pt;
+        margin-bottom: 18pt;
+    }
+
+    .brand-logo {
+        height: 44px;
+        margin-bottom: 10pt;
+    }
+
+    .cover-title {
+        font-size: 24pt;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.15;
+        margin-bottom: 6pt;
+    }
+
+    .cover-subtitle {
+        font-size: 12pt;
+        color: #0284c7;
+        font-weight: 600;
+        margin-bottom: 10pt;
+    }
+
+    .cover-desc {
+        font-size: 10pt;
+        color: #475569;
+        line-height: 1.55;
+        max-width: 95%;
+    }
+
+    .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10pt;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 12pt;
+        margin: 15pt 0;
+    }
+
+    .meta-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .meta-label {
+        font-size: 7.5pt;
+        text-transform: uppercase;
+        color: #64748b;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        margin-bottom: 2pt;
+    }
+
+    .meta-val {
+        font-size: 9.5pt;
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    .kpi-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8pt;
+        margin: 14pt 0;
+    }
+
+    .kpi-card {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-left: 4px solid #0284c7;
+        border-radius: 6px;
+        padding: 8pt 6pt;
+        text-align: center;
+    }
+
+    .kpi-num {
+        font-size: 15pt;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .kpi-lbl {
+        font-size: 7pt;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        margin-top: 2pt;
+    }
+
+    /* Table of Contents */
+    .toc-container {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 12pt 16pt;
+        margin: 12pt 0;
+    }
+
+    .toc-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 4pt 0;
+        border-bottom: 1px dotted #cbd5e1;
+        font-size: 9pt;
+    }
+
+    .toc-item:last-child {
+        border-bottom: none;
+    }
+
+    .toc-title {
+        font-weight: 600;
+        color: #1e293b;
+    }
+
+    .toc-pg {
+        color: #0284c7;
+        font-weight: 700;
+    }
+
+    /* Tables */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 8pt 0 12pt 0;
+        font-size: 8.5pt;
+    }
+
+    th, td {
+        padding: 5.5pt 7pt;
+        text-align: left;
+        border-bottom: 1px solid #e2e8f0;
+        vertical-align: top;
+    }
+
+    th {
+        background: #f1f5f9;
+        color: #334155;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 7.5pt;
+        letter-spacing: 0.5px;
+        border-top: 1px solid #cbd5e1;
+        border-bottom: 2px solid #cbd5e1;
+    }
+
+    tr:nth-child(even) td {
+        background: #fafafa;
+    }
+
+    /* Badges */
+    .badge {
+        display: inline-block;
+        padding: 2px 5px;
+        border-radius: 4px;
+        font-size: 7pt;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .badge-primary { background: #e0f2fe; color: #0369a1; }
+    .badge-success { background: #dcfce7; color: #15803d; }
+    .badge-warning { background: #fef3c7; color: #b45309; }
+    .badge-danger  { background: #fee2e2; color: #b91c1c; }
+    .badge-neutral { background: #f1f5f9; color: #475569; }
+
+    /* Callout Boxes */
+    .callout {
+        border-left: 4px solid #0284c7;
+        background: #f0f9ff;
+        padding: 7pt 10pt;
+        border-radius: 0 6px 6px 0;
+        margin: 8pt 0;
+        font-size: 8.5pt;
+    }
+
+    .callout-title {
+        font-weight: 700;
+        color: #0369a1;
+        margin-bottom: 2pt;
+    }
+
+    .callout-warning {
+        border-left-color: #f59e0b;
+        background: #fffbeb;
+    }
+
+    .callout-warning .callout-title {
+        color: #b45309;
+    }
+
+    .callout-success {
+        border-left-color: #10b981;
+        background: #f0fdf4;
+    }
+
+    .callout-success .callout-title {
+        color: #15803d;
+    }
+
+    /* Architecture Diagrams (CSS Box flow) */
+    .pipeline-diagram {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 8pt 6pt;
+        margin: 10pt 0;
+    }
+
+    .pipeline-step {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 5pt 6pt;
+        text-align: center;
+        flex: 1;
+        margin: 0 2pt;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .pipeline-step.active {
+        border-color: #0284c7;
+        background: #f0f9ff;
+    }
+
+    .step-icon {
+        font-size: 13pt;
+        margin-bottom: 2pt;
+    }
+
+    .step-title {
+        font-size: 7.5pt;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .step-sub {
+        font-size: 6.5pt;
+        color: #64748b;
+    }
+
+    .pipeline-arrow {
+        color: #94a3b8;
+        font-weight: 800;
+        font-size: 10pt;
+    }
+
+    .footer-note {
+        margin-top: 20pt;
+        border-top: 1px solid #e2e8f0;
+        padding-top: 6pt;
+        font-size: 7.5pt;
+        color: #64748b;
+        text-align: center;
+    }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════ PAGE 1: COVER PAGE ══════════════════════════ -->
+<div class="cover-page">
+    <div>
+        <div class="cover-header">
+            {{LOGO_ELEMENT}}
+            <div class="cover-title">Full Project Technical & Clinical Analysis Report</div>
+            <div class="cover-subtitle">Complete Architecture, Machine Learning, Clinical Consensus & Security Audit</div>
+            <p class="cover-desc">
+                An exhaustive architectural audit and technical evaluation of <strong>CliniQ AI v2.1</strong> — a state-of-the-art medical diagnostic intelligence workstation and clinical consensus command center designed specifically for <strong>Sri Lanka Medical Council (SLMC)-registered medical practitioners and clinical pathology laboratories</strong>.
+            </p>
+        </div>
+
+        <div class="kpi-row">
+            <div class="kpi-card">
+                <div class="kpi-num">16,437</div>
+                <div class="kpi-lbl">Total Lines of Code</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-num">4 Engines</div>
+                <div class="kpi-lbl">Multi-Modal Consensus</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-num">98.50%</div>
+                <div class="kpi-lbl">ML Model Accuracy</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-num">31+ Analytes</div>
+                <div class="kpi-lbl">Clinical Biomarkers</div>
+            </div>
+        </div>
+
+        <div class="meta-grid">
+            <div class="meta-item">
+                <span class="meta-label">Project Name & Version</span>
+                <span class="meta-val">CliniQ AI — Clinical Intelligence Platform v2.1.0</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Target Jurisdiction & Scope</span>
+                <span class="meta-val">Sri Lanka (SLMC Registered Physicians & Labs)</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Audit & Inspection Date</span>
+                <span class="meta-val">October 14, 2026 • Automated Workspace Technical Audit</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Primary Stack & Frameworks</span>
+                <span class="meta-val">FastAPI, XGBoost, EasyOCR, Gemini 2.5, NVIDIA NIM, Supabase</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Active Records in Storage</span>
+                <span class="meta-val">53 Patient Dossiers • 2 Active Doctors • SQLite + Supabase</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Compliance & Legal Doctrine</span>
+                <span class="meta-val">Strict Non-Autonomous Clinical Decision Support</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="callout callout-success">
+        <div class="callout-title">EXECUTIVE COMPLIANCE SUMMARY</div>
+        CliniQ AI operates under a strict physician-in-the-loop doctrine. The platform enforces that no automated diagnostic decision can be finalized without a verified SLMC doctor digital sign-off (Confirmation, Modification, or Rejection). All clinical algorithms incorporate evidence-based international clinical guidelines (WHO, ACC/AHA, ATP III, ATA, CKD-EPI) calibrated for Sri Lankan epidemiological reference standards.
+    </div>
+
+    <div class="footer-note">
+        Confidential Document • CliniQ AI Platform Engineering & Medical Informatics Audit • Colombo, Sri Lanka
+    </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════ PAGE 2: TABLE OF CONTENTS & EXEC SUMMARY ══════════════════════════ -->
+<h2>1. Table of Contents & Executive Summary</h2>
+
+<div class="toc-container">
+    <div class="toc-item">
+        <span class="toc-title">1. Table of Contents & Executive Summary</span>
+        <span class="toc-pg">Page 2</span>
+    </div>
+    <div class="toc-item">
+        <span class="toc-title">2. End-to-End System Architecture & Data Flow</span>
+        <span class="toc-pg">Page 3</span>
+    </div>
+    <div class="toc-item">
+        <span class="toc-title">3. The 4 Diagnostic Engines & Central Consensus Core</span>
+        <span class="toc-pg">Page 4</span>
+    </div>
+    <div class="toc-item">
+        <span class="toc-title">4. Clinical Risk Scoring & Longitudinal Intelligence</span>
+        <span class="toc-pg">Page 5</span>
+    </div>
+    <div class="toc-item">
+        <span class="toc-title">5. Computer Vision, EasyOCR & Multilingual Parser</span>
+        <span class="toc-pg">Page 6</span>
+    </div>
+    <div class="toc-item">
+        <span class="toc-title">6. Database Architecture & Supabase Cloud Integration</span>
+        <span class="toc-pg">Page 7</span>
+    </div>
+    <div class="toc-item">
+        <span class="toc-title">7. Security, Authentication & Medical Legal Governance</span>
+        <span class="toc-pg">Page 8</span>
+    </div>
+    <div class="toc-item">
+        <span class="toc-title">8. User Experience, 3D Spatial Canvas & Workstation</span>
+        <span class="toc-pg">Page 9</span>
+    </div>
+    <div class="toc-item">
+        <span class="toc-title">9. Machine Learning Benchmarks & Dataset Evaluation</span>
+        <span class="toc-pg">Page 10</span>
+    </div>
+    <div class="toc-item">
+        <span class="toc-title">10. Code Quality, Gap Analysis & Strategic Roadmap</span>
+        <span class="toc-pg">Page 11</span>
+    </div>
+    <div class="toc-item">
+        <span class="toc-title">Appendix: Comprehensive Codebase File Inventory</span>
+        <span class="toc-pg">Page 12</span>
+    </div>
+</div>
+
+<h3>Executive Summary</h3>
+<p>
+    Medical diagnostic errors and laboratory report interpretation delays remain significant clinical bottlenecks across high-volume healthcare centers and outpatient dispensaries in Sri Lanka. <strong>CliniQ AI</strong> was engineered to bridge this gap by delivering a unified, zero-latency clinical AI workstation. The platform analyzes diverse laboratory investigations—including Full Blood Counts (FBC/CBC), Comprehensive Metabolic Panels, Liver Function Tests (LFT), Renal Function Tests (KFT), Glycemic Profiles, Lipid Panels, and Thyroid Panels—and converts raw optical documents into structured biomarker intelligence, multi-model consensus diagnoses, and personalized clinical action plans.
+</p>
+
+<h3>Core Engineering Philosophies</h3>
+<ul>
+    <li><strong>Multi-Engine Consensus over Single-Model Fallibility:</strong> Medical decisions cannot rely on a single probabilistic neural network. CliniQ AI arbitrates across four orthogonal paradigms: deterministic expert rules, an ultra-low latency supervised tree ensemble (XGBoost), and two cloud vision-language foundation models (Gemini 2.5 Flash and NVIDIA NIM Llama 3.2 Vision).</li>
+    <li><strong>Strict Non-Autonomous Doctrine:</strong> AI generates differential candidates, anomaly indices, and clinical cautions; however, report finalization strictly requires verified SLMC physician authorization.</li>
+    <li><strong>Zero-Config Offline Resilience with Cloud Hybrid Sync:</strong> Fully functional offline using local EasyOCR, local SQLite, and local XGBoost models, while seamlessly streaming telemetry and dossiers to Supabase PostgreSQL when connectivity is available.</li>
+    <li><strong>Sri Lankan Clinical Localization:</strong> Purpose-built regex parsers for Sri Lankan National Identity Cards (NIC), Sri Lanka Medical Council (SLMC) registrations, telephone formats, and trilingual patient name recognition (English, Sinhala, Tamil).</li>
+</ul>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════ PAGE 3: SYSTEM ARCHITECTURE ══════════════════════════ -->
+<h2>2. End-to-End System Architecture & Data Flow</h2>
+
+<p>
+    CliniQ AI implements a decoupled, high-performance asynchronous pipeline built on <strong>FastAPI</strong>, utilizing <code>asyncio</code>, non-blocking disk I/O, concurrent threading for cloud API calls, and an interactive front-end powered by vanilla HTML5, CSS3, Chart.js, and HTML5 Canvas.
+</p>
+
+<div class="pipeline-diagram avoid-break">
+    <div class="pipeline-step">
+        <div class="step-icon">📄</div>
+        <div class="step-title">Document Ingestion</div>
+        <div class="step-sub">PNG / JPEG / PDF / Dropzone</div>
+    </div>
+    <div class="pipeline-arrow">➔</div>
+    <div class="pipeline-step">
+        <div class="step-icon">⚡</div>
+        <div class="step-title">Spatial OCR & Regex</div>
+        <div class="step-sub">EasyOCR + 31 Analyte Parser</div>
+    </div>
+    <div class="pipeline-arrow">➔</div>
+    <div class="pipeline-step active">
+        <div class="step-icon">🧠</div>
+        <div class="step-title">4 AI Engines</div>
+        <div class="step-sub">Rules + XGB + NIM + Gemini</div>
+    </div>
+    <div class="pipeline-arrow">➔</div>
+    <div class="pipeline-step active">
+        <div class="step-icon">🔮</div>
+        <div class="step-title">Consensus Core</div>
+        <div class="step-sub">Clinical Validator & Penalty</div>
+    </div>
+    <div class="pipeline-arrow">➔</div>
+    <div class="pipeline-step">
+        <div class="step-icon">📈</div>
+        <div class="step-title">Risk & Trends</div>
+        <div class="step-sub">ASCVD / eGFR / Outlier Z</div>
+    </div>
+    <div class="pipeline-arrow">➔</div>
+    <div class="pipeline-step">
+        <div class="step-icon">👨‍⚕️</div>
+        <div class="step-title">Doctor Station</div>
+        <div class="step-sub">SLMC Sign-off & Supabase</div>
+    </div>
+</div>
+
+<h3>Subsystem Breakdown</h3>
+<table>
+    <thead>
+        <tr>
+            <th style="width: 20%;">Subsystem</th>
+            <th style="width: 25%;">Component Files</th>
+            <th style="width: 55%;">Architectural Responsibility & Function</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>API Gateway & Orchestrator</strong></td>
+            <td><code>app.py</code><br><code>dependencies.py</code></td>
+            <td>FastAPI lifespan initialization, route routing, CORS/Cache middleware, parallel thread execution for cloud VLMs, dynamic payload assembly, and error boundaries.</td>
+        </tr>
+        <tr>
+            <td><strong>Ingestion & OCR Engine</strong></td>
+            <td><code>ocr_engine.py</code></td>
+            <td>EasyOCR bounding-box spatial line clustering, smart regex biomarker extraction across 31 analytes, physiological boundary filtering, image resizing/normalization.</td>
+        </tr>
+        <tr>
+            <td><strong>Diagnostic Engines</strong></td>
+            <td><code>ocr_engine.py</code><br><code>train_models.py</code></td>
+            <td>Execution of Rule-Based Clinical Engine, XGBoost 8-class classifier, NVIDIA NIM Llama 3.2 Vision VLM, Google Gemini 2.5 Flash, and Roar AI gateway fallback.</td>
+        </tr>
+        <tr>
+            <td><strong>Clinical Validator & Consensus</strong></td>
+            <td><code>clinical_validator.py</code><br><code>clinical_reasoning.py</code></td>
+            <td>Biomarker severity tiering (Critical/Severe/Moderate/Mild/Normal), hard validation rules, disagreement penalty calculation, dynamic confidence banding.</td>
+        </tr>
+        <tr>
+            <td><strong>Risk & Longitudinal Engine</strong></td>
+            <td><code>clinical_risk_engine.py</code></td>
+            <td>10-Year ASCVD calculation, Anemia WHO grading, ATP III Metabolic Syndrome, ATA Thyroid dysfunction, CKD-EPI 2021 eGFR, multivariate Z-score outlier detection, delta trend tracking.</td>
+        </tr>
+        <tr>
+            <td><strong>Persistence & Cloud Sync</strong></td>
+            <td><code>database.py</code><br><code>models_db.py</code><br><code>supabase_client.py</code></td>
+            <td>Async SQLAlchemy with local SQLite, connection pooling, and direct asynchronous PostgREST HTTP sync to Supabase Cloud PostgreSQL with Row Level Security.</td>
+        </tr>
+        <tr>
+            <td><strong>Security & Compliance</strong></td>
+            <td><code>auth.py</code><br><code>routes_auth.py</code><br><code>routes_admin.py</code></td>
+            <td>Bcrypt password hashing, JWT creation with 8-hour clinic expiration, SLMC registration verification, Sri Lankan NIC checksum parsing, admin doctor approval queue, audit logging.</td>
+        </tr>
+        <tr>
+            <td><strong>Frontend & Visualization</strong></td>
+            <td><code>static/app.js</code><br><code>static/clinical_3d.js</code><br><code>static/index.html</code></td>
+            <td>Single Page Application (SPA), dark-mode design system, interactive 3D consensus neural canvas, horizontal analyte reference curves, hospital letterhead print engine.</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════ PAGE 4: THE 4 DIAGNOSTIC ENGINES ══════════════════════════ -->
+<h2>3. The 4 Diagnostic Engines & Central Consensus Core</h2>
+
+<p>
+    CliniQ AI implements a <strong>Quad-Engine Multi-Modal Ensemble</strong> that combines high-precision deterministic rules, ultra-fast supervised statistical models, and state-of-the-art vision-language reasoning.
+</p>
+
+<h3>Diagnostic Engines Comparison</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Engine Name</th>
+            <th>Type</th>
+            <th>Technology / Model</th>
+            <th>Inference Latency</th>
+            <th>Ensemble Weight</th>
+            <th>Core Role</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Engine 1: Clinical Rules & Safety Veto</strong></td>
+            <td>Deterministic</td>
+            <td>Evidence-Based Guidelines + Safety Veto</td>
+            <td>0.001 – 0.005 s</td>
+            <td>15% (Voter) / 100% (Hard Veto)</td>
+            <td>Immediate hard-boundary verification; enacts non-negotiable safety veto if critical life-threatening cutoffs are breached.</td>
+        </tr>
+        <tr>
+            <td><strong>Engine 2: Local ML</strong></td>
+            <td>Supervised ML</td>
+            <td>XGBoost Tree Ensemble (100 est)</td>
+            <td>0.0066 ms / sample</td>
+            <td>25% (Calibrated Anchor)</td>
+            <td>Ultra-fast statistical disease classification across 8 classes; 100% offline fallback.</td>
+        </tr>
+        <tr>
+            <td><strong>Engine 3: NVIDIA NIM</strong></td>
+            <td>Cloud VLM</td>
+            <td><code>meta/llama-3.2-11b-vision-instruct</code></td>
+            <td>1.80 – 3.20 s</td>
+            <td>20% (Calibrated)</td>
+            <td>Visual layout parsing on de-identified images (PDPA 2022 compliant); cross-modal second opinion.</td>
+        </tr>
+        <tr>
+            <td><strong>Engine 4: Google Gemini</strong></td>
+            <td>Cloud Multimodal</td>
+            <td><code>gemini-2.5-flash</code> (JSON Mode)</td>
+            <td>1.20 – 2.10 s</td>
+            <td>40% (Primary)</td>
+            <td>Holistic visual & contextual clinical interpretation on de-identified images; rapid structured disease synthesis.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Consensus Arbitration, Rules Veto & Abstention Mathematics</h3>
+<p>
+    The Central Consensus Core resolves model discordance through a safety-aware arbitration algorithm implemented in <code>app.py</code> and <code>clinical_validator.py</code>:
+</p>
+<pre>
+Weighted Agreement Formulation:
+W_gemini = 0.40, W_ml = 0.25, W_nvidia = 0.20, W_rules = 0.15
+W_active = sum(W_i for active and valid model outputs)
+
+1. Hard Rules Veto Layer:
+   IF Hemoglobin &lt; 6.5 g/dL OR Platelets &lt; 50k OR Creatinine &gt; 3.0 mg/dL OR Glucose &gt; 300 mg/dL:
+       Primary_Diagnosis = Critical_Condition (Emergency Rules Override)
+       Confidence = 99.0% (CRITICAL / HIGH), Rules_Veto_Applied = True
+
+2. Consensus Abstention & Confirmatory Test Recommendation:
+   IF Disagreement_Detected AND NOT Has_Critical_Pathology AND Confidence &lt; 60.0%:
+       Primary_Diagnosis = "Inconclusive / Consensus Abstention (Confirmatory Testing Required)"
+       Is_Abstaining = True, Recommended_Tests = get_recommended_confirmatory_tests(...)
+</pre>
+
+<div class="callout callout-warning avoid-break">
+    <div class="callout-title">SAFETY GUARDRAILS & DISAGREEMENT PENALTY</div>
+    <ul style="margin-left: 15px; margin-top: 4px;">
+        <li><strong>Rules Engine Safety Veto:</strong> The rules engine acts as a primary clinical safety circuit breaker. Life-threatening emergency thresholds immediately override probabilistic ML and VLM votes, escalating urgent alerts.</li>
+        <li><strong>Definitive "Healthy" Guardrail:</strong> If laboratory biomarkers show verified pathology (e.g., FBS &ge; 126 or Hb &lt; 12), all conservative "Healthy" or "Normal" model votes are forcefully purged from voting weights.</li>
+        <li><strong>Disagreement Penalty & Abstention:</strong> When models disagree without definitive critical lab pathology, confidence is penalized into the decision-support band (&lt; 70%), and the engine explicitly abstains while providing specific confirmatory lab tests (HbA1c, OGTT, Iron profile, FBC monitoring) to resolve the conflict.</li>
+        <li><strong>Sri Lanka PDPA (2022) Privacy Layer:</strong> Cloud VLMs (Gemini & NVIDIA) receive client-side de-identified images with patient Name, NIC, Phone, and Address redacted via bounding-box masking before transmission.</li>
+    </ul>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════ PAGE 5: CLINICAL RISK ENGINE ══════════════════════════ -->
+<h2>4. Clinical Risk Scoring & Longitudinal Intelligence</h2>
+
+<p>
+    Beyond categorical diagnoses, CliniQ AI runs a dedicated evidence-based clinical risk stratification engine (<code>clinical_risk_engine.py</code>) incorporating validated medical scoring systems calibrated for South Asian and Sri Lankan epidemiology:
+</p>
+
+<table>
+    <thead>
+        <tr>
+            <th style="width: 25%;">Clinical Risk Module</th>
+            <th style="width: 25%;">Underlying Formula / Model</th>
+            <th style="width: 20%;">Stratification Tiers</th>
+            <th style="width: 30%;">Clinical Action Triggered</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>10-Year ASCVD Risk</strong></td>
+            <td>ACC/AHA Pooled Cohort Equations with <strong>1.4&times; QRISK3 / WHO-ISH South Asian Recalibration</strong></td>
+            <td>Low (&lt;5%), Borderline (5–7.4%), Intermediate (7.5–19.9%), High (&ge;20%)</td>
+            <td>Intermediate/High triggers statin therapy recommendations, ECG/Echo referrals, and cardiovascular lifestyle optimization.</td>
+        </tr>
+        <tr>
+            <td><strong>WHO Anemia Severity</strong></td>
+            <td>Official WHO Standards (WHO/NHD/01.3: Mild 11–11.9/12.9, Mod 8–10.9, Severe &lt;8.0 g/dL)</td>
+            <td>Normal, Mild Anaemia, Moderate Anaemia, Severe Anaemia (&lt;8.0)</td>
+            <td>Severe Anaemia triggers hematology review; critical cutoff &lt;6.5 g/dL triggers emergency blood transfusion protocol.</td>
+        </tr>
+        <tr>
+            <td><strong>ATP III Metabolic Risk</strong></td>
+            <td>NCEP ATP III 5 Criteria (FBS &ge;100, BP/HTN, South Asian BMI &ge;25 kg/m&sup2;, Triglycerides, HDL)</td>
+            <td>Score 0–5: Low (0), Mild (1), Moderate (2), High (&ge;3 criteria met)</td>
+            <td>Score &ge;3 confirms Metabolic Syndrome; flags missing lipid subfractions and initiates dietary and glycemic management.</td>
+        </tr>
+        <tr>
+            <td><strong>Dengue Trajectory Module</strong></td>
+            <td>Sri Lanka National Dengue Control Unit (NDCU) Protocol (Platelet trend, PCV hemoconcentration)</td>
+            <td>Low, Moderate Surveillance, High Warning Risk (NDCU Critical Alert)</td>
+            <td>Platelet plunge (&lt;100k or &lt;50k) or &ge;20% PCV jump triggers urgent admission, serial FBC q6h, and fluid balance protocol.</td>
+        </tr>
+        <tr>
+            <td><strong>CKDu Endemic Surveillance</strong></td>
+            <td>Sri Lanka Ministry of Health CKDu Screening Protocol (Dry Zone / NCP exposure + eGFR decline)</td>
+            <td>Non-Endemic, Monitored, High CKDu Surveillance Flag</td>
+            <td>Agricultural/Dry Zone cohort with eGFR &lt; 60 triggers urinary biomarker profiling (uACR, &alpha;1-microglobulin) and renal ultrasound.</td>
+        </tr>
+        <tr>
+            <td><strong>Trilingual Patient Summaries</strong></td>
+            <td>Automated localized patient takeaway summaries in English, Sinhala (සිංහල), and Tamil (தமிழ்)</td>
+            <td>Physician-reviewed takeaway</td>
+            <td>Generates patient-friendly explanations and nutritional advice in the patient's native language upon doctor sign-off.</td>
+        </tr>
+        <tr>
+            <td><strong>eGFR CKD Staging</strong></td>
+            <td>CKD-EPI 2021 Formula (Race-Free, parameterized by age, gender, serum creatinine)</td>
+            <td>Stage 1 (&ge;90) to Stage 5 (&lt;15 mL/min/1.73m&sup2;)</td>
+            <td>eGFR &lt; 60 triggers urine Albumin-to-Creatinine Ratio (uACR), nephrology consult, and strict NSAID contraindication warning.</td>
+        </tr>
+        <tr>
+            <td><strong>Multivariate Anomaly Score</strong></td>
+            <td>Multivariate Z-Score Outlier Index across 7 primary hematologic & chemistry analytes</td>
+            <td>Normal (0–44%), Moderate (45–74%), High Outlier (&ge;75%)</td>
+            <td>Identifies extreme biological deviations (&gt;2.5 sigma) indicating acute physiological collapse or sample contamination.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Longitudinal Trend Engine & Deterioration Alerts</h3>
+<p>
+    When a patient's historical reports exist in the database, the longitudinal engine retrieves the last 5 records and computes analyte delta (Delta), trajectory slope (Rising, Falling, Stable), and generates automated deterioration alerts:
+</p>
+<ul>
+    <li><strong>Acute Bleeding Alert:</strong> Haemoglobin drop of 1.5 g/dL or more since last encounter triggers immediate occult GI blood loss evaluation.</li>
+    <li><strong>Acute Kidney Injury (AKI) Alert:</strong> Serum Creatinine increase of 0.3 mg/dL or more triggers nephrotoxic drug cessation and hydration protocol.</li>
+    <li><strong>Glycemic Deterioration:</strong> Fasting blood sugar surge of 30 mg/dL or more triggers prompt therapeutic intensification.</li>
+    <li><strong>Thrombocytopenic Crash:</strong> Platelet count decline of 50 x 10^3/uL or more triggers dengue/hematologic review.</li>
+</ul>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════ PAGE 6: OCR & BIOMARKER ENGINE ══════════════════════════ -->
+<h2>5. Computer Vision, EasyOCR & Multilingual Parser</h2>
+
+<p>
+    Laboratory reports in Sri Lanka are produced across hundreds of different laboratory formats with varied fonts, contrast ratios, and table layouts. <code>ocr_engine.py</code> implements a robust spatial bounding-box clustering algorithm coupled with intelligent unit-aware regex parsers.
+</p>
+
+<h3>Spatial Line Reconstruction Algorithm</h3>
+<pre>
+1. EasyOCR reader processes image bytes (auto-detects NVIDIA CUDA GPU vs CPU).
+2. For each detected bounding box: compute vertical center (y_center) and height (h).
+3. Group boxes into horizontal lines: boxes belong to the same line if:
+   |box.y_center - line.y_average| &lt;= max(10.0, line.height_average * 0.65)
+4. Sort lines top-to-bottom by y_center.
+5. Sort words within each line strictly left-to-right by x_min.
+6. Concatenate words into reconstructed lines.
+</pre>
+
+<h3>Smart Biomarker Extraction (Range-Sanitization Logic)</h3>
+<p>
+    Standard OCR regular expressions frequently fail because they accidentally match the laboratory's printed reference range (e.g. <code>12.0 - 17.5</code>) instead of the patient's actual result (e.g. <code>9.2</code>). CliniQ AI solves this with a 4-tier extractor (<code>extract_smart_biomarker</code>):
+</p>
+<ol>
+    <li><strong>Unit-Proximity Matching:</strong> Searches for numbers immediately preceding recognized clinical units (<code>g/dL</code>, <code>x10^3/uL</code>, <code>mg/dL</code>, <code>mIU/L</code>, <code>U/L</code>).</li>
+    <li><strong>Reference Range Sanitization:</strong> Replaces bracketed ranges (<code>[0.55 - 4.78]</code>), hyphenated ranges (<code>12.0 - 16.0</code>), and biological reference strings with a neutral <code>[REF_RANGE]</code> token.</li>
+    <li><strong>Cleaned Line Search:</strong> Extracts candidate numeric values from the range-sanitized text within physiological sanity limits.</li>
+    <li><strong>Left-to-Right Fallback:</strong> If step 1–3 fail, sequentially inspects candidate numbers within defined plausible medical bounds.</li>
+</ol>
+
+<h3>Trilingual Patient Demographics Extraction</h3>
+<p>
+    The engine extracts patient name, age, and gender across English, Sinhala, and Tamil scripts while filtering out doctor, lab, hospital, and technologist names:
+</p>
+<table>
+    <thead>
+        <tr>
+            <th>Field</th>
+            <th>English Patterns</th>
+            <th>Sinhala Patterns (සිංහල)</th>
+            <th>Tamil Patterns (தமிழ்)</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Patient Name</strong></td>
+            <td><code>Patient Name:</code>, <code>Pt Name:</code>, <code>Name:</code></td>
+            <td><code>රෝගියාගේ නම</code>, <code>රෝගී නම</code>, <code>නම</code></td>
+            <td><code>நோயாளி பெயர்</code>, <code>பெயர்</code></td>
+        </tr>
+        <tr>
+            <td><strong>Patient Age</strong></td>
+            <td><code>Age:</code>, <code>Age / Sex:</code>, <code>... Yrs</code></td>
+            <td><code>වයස</code>, <code>වසර</code></td>
+            <td><code>வயது</code>, <code>வருடங்கள்</code></td>
+        </tr>
+        <tr>
+            <td><strong>Patient Gender</strong></td>
+            <td><code>Male</code>, <code>Female</code>, <code>M</code>, <code>F</code></td>
+            <td><code>පුරුෂ / පිරිමි</code>, <code>ස්ත්‍රී / ගැහැණු</code></td>
+            <td><code>ஆண்</code>, <code>பெண்</code></td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════ PAGE 7: DATABASE & SUPABASE ══════════════════════════ -->
+<h2>6. Database Architecture & Supabase Cloud Integration</h2>
+
+<p>
+    CliniQ AI implements a <strong>Dual-Store Hybrid Persistence Architecture</strong>. The application functions autonomously on a local asynchronous SQLite database (<code>cliniq.db</code>) via SQLAlchemy 2.0 and <code>aiosqlite</code>, while simultaneously maintaining real-time cloud synchronization with <strong>Supabase PostgreSQL</strong> via direct HTTP PostgREST API.
+</p>
+
+<h3>Database Schema Entity-Relationship</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Table Name</th>
+            <th>Key Columns</th>
+            <th>Data Types & Constraints</th>
+            <th>Business Responsibility</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>doctors</code></td>
+            <td><code>id</code> (PK, UUID)<br><code>slmc_number</code> (UK)<br><code>email</code> (UK)<br><code>nic</code> (UK)<br><code>password_hash</code><br><code>status</code><br><code>role</code></td>
+            <td>String(36), String(20), String(320), String(12), String(255), String(40) default 'PENDING_EMAIL_VERIFICATION', String(20) default 'DOCTOR'</td>
+            <td>Doctor registry, credentials, SLMC identification, approval lifecycle state, and doctor-specific API keys.</td>
+        </tr>
+        <tr>
+            <td><code>patient_reports</code></td>
+            <td><code>id</code> (PK, UUID)<br><code>patient_ref</code> (Index)<br><code>doctor_id</code> (Index)<br><code>primary_diagnosis</code><br><code>confidence_pct</code><br><code>review_action</code><br><code>full_payload</code></td>
+            <td>String(36), String(20), String(36), String(120), Float, String(20), Text (Full JSON analysis dossier), Timestamps</td>
+            <td>Permanent clinical dossier repository storing raw OCR, parsed analytes, 4-engine telemetry, risk scores, and doctor sign-off.</td>
+        </tr>
+        <tr>
+            <td><code>auth_sessions</code></td>
+            <td><code>id</code> (PK, UUID)<br><code>doctor_id</code> (Index)<br><code>token_jti</code> (UK)<br><code>is_revoked</code><br><code>expires_at</code></td>
+            <td>String(36), String(36), String(64), Boolean default False, DateTime</td>
+            <td>JWT session tracking, token blacklisting on logout, active session monitoring.</td>
+        </tr>
+        <tr>
+            <td><code>audit_log</code></td>
+            <td><code>id</code> (PK, Auto)<br><code>prev_hash</code> (SHA-256 Chain Link)<br><code>row_hash</code> (Cryptographic Digest)<br><code>event_type</code><br><code>actor_id</code><br><code>details</code></td>
+            <td>Integer, String(64), String(64), String(50), String(36), String(45), Text (JSON), DateTime</td>
+            <td>Tamper-evident cryptographic ledger linking sequential SHA-256 hashes to guarantee mathematical audit immutability.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Supabase Cloud Integration Highlights</h3>
+<ul>
+    <li><strong>Direct PostgREST API:</strong> Communicates over HTTP/2 using <code>httpx.AsyncClient</code>, avoiding heavy external Python SDK incompatibilities while guaranteeing non-blocking async operation.</li>
+    <li><strong>Strict Row Level Security (RLS) & Multi-Tenant Doctor Isolation:</strong> The Supabase schema (<code>supabase_schema.sql</code>) enforces true physician isolation checking both Supabase Auth UID and signed JWT subject claims:
+        <pre>CREATE POLICY "Doctor isolated read patient_reports"
+ON public.patient_reports FOR SELECT TO authenticated, anon
+USING (
+    doctor_id = auth.uid()::text 
+    OR doctor_id = (current_setting('request.jwt.claims', true)::jsonb -&gt;&gt; 'sub')
+);</pre>
+    </li>
+    <li><strong>Optimized Indexing:</strong> Composite indices on <code>(doctor_id, created_at DESC)</code> and <code>patient_ref</code> ensure sub-50ms query latency for clinic report retrieval and longitudinal delta lookups.</li>
+    <li><strong>Automatic Dual-Sync:</strong> Every report analyzed via <code>/api/analyze</code> and every doctor sign-off via <code>/api/reports/{ref}/review</code> is automatically synced to Supabase Cloud in the background without blocking the UI response.</li>
+</ul>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════ PAGE 8: SECURITY & GOVERNANCE ══════════════════════════ -->
+<h2>7. Security, Authentication & Medical Legal Governance</h2>
+
+<p>
+    Operating in the clinical domain requires stringent data governance, legal safety barriers, and authentication protocols. CliniQ AI adheres to the Sri Lanka Personal Data Protection Act (PDPA) No. 9 of 2022, Sri Lanka Medical Council (SLMC) ethical guidelines, and international clinical software safety standards.
+</p>
+
+<h3>Data Privacy & Sri Lanka PDPA (2022) De-Identification</h3>
+<div class="callout callout-success avoid-break">
+    <div class="callout-title">PRE-TRANSMISSION PATIENT PII REDACTION</div>
+    Under the Sri Lanka Personal Data Protection Act No. 9 of 2022, transmitting identifiable health data across international boundaries without explicit de-identification is restricted. CliniQ AI runs a local optical de-identification layer (<code>deidentify_report_image</code> in <code>ocr_engine.py</code>) using Pillow and EasyOCR bounding boxes. Prior to dispatching report scans to cloud VLMs (Google Gemini, NVIDIA NIM), all bounding boxes containing Patient Name, Sri Lankan NIC (9-digit/12-digit), Phone Numbers, and Street Addresses are dynamically redacted with opaque black masking. Cloud models remain entirely blind to patient identity.
+</div>
+
+<h3>Tamper-Evident Cryptographic Audit Logging</h3>
+<p>
+    Standard database tables named "immutable" are vulnerable to administrative manipulation. CliniQ AI implements a <strong>cryptographic blockchain-style hash chain</strong> (<code>auth.py</code>, <code>compute_audit_hash()</code>):
+</p>
+<pre>
+H_0 = SHA256( "GENESIS" | event_type | actor_id | target_id | timestamp | details )
+H_n = SHA256( H_{n-1}   | event_type | actor_id | target_id | timestamp | details )
+</pre>
+<p>
+    Every entry stores <code>prev_hash</code> and <code>row_hash</code>. Any retroactive row modification or deletion breaks the hash chain for all subsequent entries, creating mathematical tamper-evidence.
+</p>
+
+<h3>Brute-Force Protection & Session Hardening</h3>
+<ul>
+    <li><strong>In-Memory Rate Limiting:</strong> Enforces a strict 5-attempt threshold within a sliding 15-minute window per SLMC license or IP address. Breaching triggers a 15-minute automated lockout with HTTP 429 response.</li>
+    <li><strong>Session Token Rotation:</strong> Re-authentication automatically revokes prior active JWT sessions, preventing concurrent token hijacking across public clinic terminals.</li>
+    <li><strong>Production Secret Safeguard:</strong> The application programmatically halts boot if <code>ENVIRONMENT=production</code> and <code>CLINIQ_SECRET_KEY</code> is left as the default or shorter than 32 characters.</li>
+</ul>
+
+<h3>Sri Lankan Credential Verification Algorithms</h3>
+<p>
+    Unlike generic platforms that accept arbitrary strings, CliniQ AI verifies all clinical practitioner identities at registration (<code>auth.py</code>):
+</p>
+<table>
+    <thead>
+        <tr>
+            <th>Identifier</th>
+            <th>Algorithmic Rule / Pattern</th>
+            <th>Normalization Output</th>
+            <th>Error Handling</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>SLMC Registration</strong></td>
+            <td>Regex <code>^SLMC[-\/]\d{4,6}$</code> verifying official Sri Lanka Medical Council license.</td>
+            <td><code>SLMC-XXXXX</code> (Standard uppercase hyphenated)</td>
+            <td>Rejects with <code>REG_001</code> if format fails; enforces database uniqueness.</td>
+        </tr>
+        <tr>
+            <td><strong>Sri Lankan NIC (Legacy)</strong></td>
+            <td>Regex <code>^(\d{9})[VXvx]$</code>. Validates 2-digit birth year and day-of-year (1–366).</td>
+            <td><code>XXXXXXXXXV</code> (Uppercase)</td>
+            <td>Validates day-of-year math (&gt;500 indicates female); rejects invalid calendar days.</td>
+        </tr>
+        <tr>
+            <td><strong>Sri Lankan NIC (Modern)</strong></td>
+            <td>Regex <code>^(\d{12})$</code>. Validates 4-digit birth year (1900–present) and day-of-year.</td>
+            <td><code>XXXXXXXXXXXX</code></td>
+            <td>Rejects implausible birth years and malformed day counts with <code>REG_002</code>.</td>
+        </tr>
+        <tr>
+            <td><strong>Mobile Phone</strong></td>
+            <td>Regex <code>^(\+94|0)[0-9]{9}$</code>. Strips whitespace, dashes, and formats.</td>
+            <td><code>+94XXXXXXXXX</code> (E.164 international)</td>
+            <td>Rejects non-Sri Lankan standard mobile formats with <code>REG_006</code>.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Doctor Approval Workflow & Authentication Lifespan</h3>
+<div class="callout callout-warning avoid-break">
+    <div class="callout-title">DOCTOR ACCOUNT LIFECYCLE</div>
+    <code>PENDING_EMAIL_VERIFICATION</code> &rarr; <code>PENDING_ADMIN_APPROVAL</code> &rarr; <code>VERIFIED</code> | <code>REJECTED</code> | <code>SUSPENDED</code>
+    <br><br>
+    Unapproved doctors are prohibited from running diagnostic analyses. The system administrator manages approval via the dedicated portal (<code>admin.html</code>) and administrative endpoints (<code>routes_admin.py</code>).
+</div>
+
+<h3>Physician Digital Sign-Off Protocol</h3>
+<p>
+    The platform enforces that AI analysis is categorized as decision support only. Under the Physician Sign-Off Station:
+</p>
+<ul>
+    <li><strong>Confirmation:</strong> Doctor agrees with the consensus diagnosis and locks the record.</li>
+    <li><strong>Modification:</strong> Doctor overrides the diagnosis, enters clinical justification notes, and saves the modified diagnosis.</li>
+    <li><strong>Rejection:</strong> Doctor rejects the AI analysis (e.g. poor image quality, artifact, clinical mismatch) and documents the clinical rationale.</li>
+</ul>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════ PAGE 9: FRONTEND & UX ══════════════════════════ -->
+<h2>8. User Experience, 3D Spatial Canvas & Workstation</h2>
+
+<p>
+    CliniQ AI features a bespoke, premium medical user interface designed to maximize clinical productivity, eliminate cognitive fatigue, and provide intuitive data visualization.
+</p>
+
+<h3>Key Interface Capabilities</h3>
+<ul>
+    <li><strong>Collapsible 3D Spatial Sidebar:</strong> Toggles smoothly between a 275px full workstation navigation rail and a compact 72px icon rail (<code>static/app.js</code>, <code>toggleSidebar()</code>), maximizing screen real estate for dense laboratory tables. State is persisted in <code>localStorage</code>.</li>
+    <li><strong>Interactive 3D Consensus Core:</strong> A custom HTML5 Canvas spatial rendering engine (<code>static/clinical_3d.js</code>) displaying a rotating 3D neural sphere with primary engine nodes (Rules, XGBoost, NVIDIA, Gemini) and connecting particle lattice. The core responds interactively to physician mouse movement.</li>
+    <li><strong>Horizontal Analyte Reference Curves:</strong> Analyte reference ranges are displayed as continuous horizontal curves with color-coded regions:
+        <span class="badge badge-danger">Depleted</span>
+        <span class="badge badge-warning">Low Normal</span>
+        <span class="badge badge-success">Optimal</span>
+        <span class="badge badge-warning">High Normal</span>
+        <span class="badge badge-danger">Critical</span>. Directional arrows indicate the exact deviation magnitude.
+    </li>
+    <li><strong>Medical Document Inspection Studio:</strong> Features a high-resolution viewer with interactive Zoom (0.5x to 3.0x), 90-degree Rotation, and Pan/Drag capabilities, allowing doctors to cross-examine difficult handwriting or faint optical stamps against OCR results.</li>
+    <li><strong>Cinematic 5-Phase Analysis Runner:</strong> Simulates a phased visual progression during analysis (Document Scan &rarr; OCR Extraction &rarr; 4-Engine Parallel Compute &rarr; Consensus Synthesis &rarr; Dossier Generation), providing clear visual feedback during API inference.</li>
+    <li><strong>Hospital Letterhead Print Engine:</strong> Formats patient dossiers into a physical black-and-white hospital print layout adhering to standard Sri Lankan hospital letterhead formats (Colombo Clinical Laboratory standard).</li>
+</ul>
+
+<h3>Frontend Architecture Metrics</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Module</th>
+            <th>File</th>
+            <th>Lines of Code</th>
+            <th>Design & Architectural Role</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Main Workstation Dashboard</strong></td>
+            <td><code>static/index.html</code></td>
+            <td>1,058 lines</td>
+            <td>Single-page workstation layout, intake forms, diagnostic cards, charts, and letterhead modal.</td>
+        </tr>
+        <tr>
+            <td><strong>Dashboard Controller</strong></td>
+            <td><code>static/app.js</code></td>
+            <td>1,980 lines</td>
+            <td>State management, API integration, Chart.js instances, file preview zoom/pan, Supabase polling.</td>
+        </tr>
+        <tr>
+            <td><strong>3D Spatial & Motion Engine</strong></td>
+            <td><code>static/clinical_3d.js</code></td>
+            <td>379 lines</td>
+            <td>Canvas 3D math, ambient medical particle background, rotating neural consensus sphere.</td>
+        </tr>
+        <tr>
+            <td><strong>Design System & Styles</strong></td>
+            <td><code>static/style.css</code></td>
+            <td>2,409 lines</td>
+            <td>Curated dark-mode theme, CSS variables, glassmorphism, responsive breakpoints, print media rules.</td>
+        </tr>
+        <tr>
+            <td><strong>Admin Command Center</strong></td>
+            <td><code>static/admin.html</code></td>
+            <td>464 lines</td>
+            <td>Doctor credential verification queue, account approval/rejection, audit log inspection.</td>
+        </tr>
+        <tr>
+            <td><strong>Authentication Portals</strong></td>
+            <td><code>static/login.html</code><br><code>static/register.html</code></td>
+            <td>745 lines</td>
+            <td>Physician onboarding, SLMC validation, NIC calculation, and login security controls.</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════ PAGE 10: MACHINE LEARNING BENCHMARKS ══════════════════════════ -->
+<h2>9. Machine Learning Benchmarks & Dataset Evaluation</h2>
+
+<p>
+    CliniQ AI incorporates a supervised machine learning benchmark pipeline (<code>train_models.py</code>) evaluated on a synthetic clinical cohort of <strong>3,000 patient records</strong> generated via physiological clinical distributions (<code>synthetic_data_generator.py</code>).
+</p>
+
+<h3>Model Comparison & Performance Benchmarks</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Algorithm</th>
+            <th>Accuracy</th>
+            <th>F1-Score (Macro)</th>
+            <th>Training Time</th>
+            <th>Inference Latency</th>
+            <th>Deployment Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Logistic Regression</strong></td>
+            <td>96.17%</td>
+            <td>0.9618</td>
+            <td>0.4446 s</td>
+            <td>0.0024 ms / sample</td>
+            <td>Evaluated Baseline</td>
+        </tr>
+        <tr>
+            <td><strong>Random Forest Classifier</strong></td>
+            <td>98.33%</td>
+            <td>0.9833</td>
+            <td>0.2490 s</td>
+            <td>0.0155 ms / sample</td>
+            <td>Evaluated Ensemble</td>
+        </tr>
+        <tr>
+            <td><strong>XGBoost Classifier</strong></td>
+            <td><strong>98.50%</strong></td>
+            <td><strong>0.9850</strong></td>
+            <td><strong>0.2989 s</strong></td>
+            <td><strong>0.0066 ms / sample</strong></td>
+            <td><span class="badge badge-success">Production Model</span></td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>XGBoost Per-Class Classification Report (Test Set N=600)</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Disease Class</th>
+            <th>Precision</th>
+            <th>Recall</th>
+            <th>F1-Score</th>
+            <th>Support</th>
+            <th>Clinical Assessment</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Anemia</strong></td>
+            <td>98.67%</td>
+            <td>98.67%</td>
+            <td>98.67%</td>
+            <td>75</td>
+            <td>Near-perfect detection driven by Hemoglobin & red cell indices.</td>
+        </tr>
+        <tr>
+            <td><strong>Chronic Kidney Disease</strong></td>
+            <td>100.0%</td>
+            <td>100.0%</td>
+            <td>100.0%</td>
+            <td>75</td>
+            <td>Perfect discrimination based on Creatinine and secondary anemia features.</td>
+        </tr>
+        <tr>
+            <td><strong>Diabetes</strong></td>
+            <td>100.0%</td>
+            <td>100.0%</td>
+            <td>100.0%</td>
+            <td>75</td>
+            <td>Complete separation based on Fasting Blood Sugar thresholds.</td>
+        </tr>
+        <tr>
+            <td><strong>Healthy (Normal)</strong></td>
+            <td>93.42%</td>
+            <td>94.67%</td>
+            <td>94.04%</td>
+            <td>75</td>
+            <td>Slight overlap with borderline cases; addressed by safety guardrail.</td>
+        </tr>
+        <tr>
+            <td><strong>Hypercholesterolemia</strong></td>
+            <td>100.0%</td>
+            <td>100.0%</td>
+            <td>100.0%</td>
+            <td>75</td>
+            <td>Zero false positives or negatives across cholesterol boundaries.</td>
+        </tr>
+        <tr>
+            <td><strong>Hyperthyroidism</strong></td>
+            <td>98.68%</td>
+            <td>100.0%</td>
+            <td>99.34%</td>
+            <td>75</td>
+            <td>Flawless sensitivity for suppressed TSH levels.</td>
+        </tr>
+        <tr>
+            <td><strong>Hypothyroidism</strong></td>
+            <td>100.0%</td>
+            <td>100.0%</td>
+            <td>100.0%</td>
+            <td>75</td>
+            <td>Flawless detection of elevated TSH profiles.</td>
+        </tr>
+        <tr>
+            <td><strong>Infection</strong></td>
+            <td>97.26%</td>
+            <td>94.67%</td>
+            <td>95.95%</td>
+            <td>75</td>
+            <td>High sensitivity for leukocytosis and inflammatory shifts.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Real-World Benchmark Suite & Multi-Label Evaluation Transition</h3>
+<p>
+    While the initial 3,000 synthetic records established baseline cut-offs, real patients exhibit complex multi-morbidity (e.g. concurrent Anemia and CKD, or Type 2 Diabetes with Diabetic Nephropathy). A single-label 8-class classifier artificially forces mutually exclusive categories. To resolve this, CliniQ AI's Central Consensus Engine operates as a <strong>multi-label pathology arbitration layer</strong>, scoring individual organ axes simultaneously (eGFR, ASCVD, Glycemia, Dengue, Anemia, CKDu) and outputting compound diagnoses rather than a single artificial label.
+</p>
+<p>
+    To ensure real-world generalization, the system incorporates a test suite in <code>data/real_reports/</code> populated via <code>dataset_downloader.py</code> using the Hugging Face <code>davanstrien/india-medical-ocr-test</code> dataset. Each record contains high-resolution real hospital report scans paired with verified ground-truth markdown transcripts for continuous OCR accuracy validation.
+</p>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════ PAGE 11: QUALITY & ROADMAP ══════════════════════════ -->
+<h2>10. Code Quality, Gap Analysis & Strategic Roadmap</h2>
+
+<p>
+    An engineering audit was conducted across all 34 source files to identify architectural strengths, potential technical debt, and priority enhancements.
+</p>
+
+<h3>Key Architectural Strengths</h3>
+<ul>
+    <li><strong>Resilient Fallback Design:</strong> When cloud VLM keys are missing or network outages occur, the system gracefully degrades to local EasyOCR and XGBoost without crashing.</li>
+    <li><strong>High Performance:</strong> Pure vanilla JavaScript frontend with zero heavy runtime overhead loads instantly; local ML model infers in 0.0066 milliseconds.</li>
+    <li><strong>Strict Type Safety & Schemas:</strong> Extensive use of Pydantic models (<code>routes_auth.py</code>, <code>routes_reports.py</code>, <code>routes_admin.py</code>) and SQLAlchemy mapped columns ensures strong type validation.</li>
+    <li><strong>Evidence-Based Clinical Logic:</strong> Implements accredited medical scoring equations (WHO, ACC/AHA, CKD-EPI, ATA, ATP III) rather than relying solely on black-box LLM hallucinations.</li>
+    <li><strong>Automated Test Rigor:</strong> Comprehensive 14-test automated pytest harness guarantees non-regression across security, consensus, and clinical guidelines.</li>
+</ul>
+
+<h3>Technical Gaps & Vulnerabilities Audit</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Area</th>
+            <th>Identified Gap / Vulnerability</th>
+            <th>Risk Level</th>
+            <th>Mitigation / Resolution Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Database Concurrency</strong></td>
+            <td>Local development uses SQLite (<code>cliniq.db</code>). While async via <code>aiosqlite</code>, SQLite enforces a single-writer lock which can throttle concurrent hospital workloads.</td>
+            <td><span class="badge badge-warning">Medium</span></td>
+            <td>Set <code>CLINIQ_DATABASE_URL</code> to a managed PostgreSQL cluster in production for high-throughput write scalability.</td>
+        </tr>
+        <tr>
+            <td><strong>Credential & Key Security</strong></td>
+            <td>Previous environment held live keys and default development secrets.</td>
+            <td><span class="badge badge-success">Remediated</span></td>
+            <td>Rotated exposed keys; added production startup guard refusing to boot with default secrets; added client-side PII redaction layer under Sri Lanka PDPA (2022).</td>
+        </tr>
+        <tr>
+            <td><strong>Automated Testing & CI Harness</strong></td>
+            <td>Previously lacked automated regression suite in CI/CD pipeline.</td>
+            <td><span class="badge badge-success">Resolved (14/14 Passed)</span></td>
+            <td>Built comprehensive <code>pytest</code> suite (<code>tests/test_security.py</code>, <code>tests/test_clinical_guidelines.py</code>, <code>tests/test_consensus_and_veto.py</code>) testing hash chaining, rate limiting, WHO standards, and rules veto with 100% pass rate.</td>
+        </tr>
+        <tr>
+            <td><strong>Supabase RLS Isolation</strong></td>
+            <td>Initial RLS read policy lacked doctor-level isolation.</td>
+            <td><span class="badge badge-success">Remediated</span></td>
+            <td>Updated <code>supabase_schema.sql</code> to strictly enforce <code>doctor_id = auth.uid()::text OR doctor_id = (current_setting('request.jwt.claims', true)::jsonb -&gt;&gt; 'sub')</code>.</td>
+        </tr>
+        <tr>
+            <td><strong>SLMC Verification</strong></td>
+            <td>SLMC numbers are validated using regex patterns, but cannot cross-reference a live government SLMC database API due to lack of a public API endpoint.</td>
+            <td><span class="badge badge-neutral">Low</span></td>
+            <td>Implement scheduled batch verification with the official SLMC practitioner registry portal where administrative access permits.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Strategic Engineering Roadmap</h3>
+<ol>
+    <li><strong>Phase 1 — Production Hardening:</strong> Migrate to production PostgreSQL, containerize with multi-stage Docker builds, and establish automated CI/CD pipelines.</li>
+    <li><strong>Phase 2 — HL7 / FHIR Interoperability:</strong> Implement FHIR-compliant JSON export for seamless integration with Sri Lankan hospital information management systems (HHIMS).</li>
+    <li><strong>Phase 3 — Edge Mobile Assistant:</strong> Package the workstation as a progressive web application (PWA) with camera-assisted OCR scanning for ward rounds.</li>
+</ol>
+
+<div class="page-break"></div>
+
+<!-- ══════════════════════════ PAGE 12: APPENDIX FILE INVENTORY ══════════════════════════ -->
+<h2>Appendix: Comprehensive Codebase File Inventory</h2>
+
+<p>
+    A complete structural audit of the CliniQ AI codebase comprising <strong>34 tracked source files</strong> and <strong>16,437 total lines of code</strong>:
+</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>File Path</th>
+            <th>Lines</th>
+            <th>Size (Bytes)</th>
+            <th>Language / Type</th>
+            <th>Primary Responsibility</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>app.py</code></td>
+            <td>895</td>
+            <td>43,101</td>
+            <td>Python</td>
+            <td>Main FastAPI application, lifespan, consensus engine, and intake endpoint.</td>
+        </tr>
+        <tr>
+            <td><code>auth.py</code></td>
+            <td>123</td>
+            <td>5,022</td>
+            <td>Python</td>
+            <td>Bcrypt hashing, JWT generation/decoding, SLMC & NIC validation logic.</td>
+        </tr>
+        <tr>
+            <td><code>clinical_reasoning.py</code></td>
+            <td>509</td>
+            <td>20,979</td>
+            <td>Python</td>
+            <td>Safety arbitration, finding-tied recommendations, uncertainty handling.</td>
+        </tr>
+        <tr>
+            <td><code>clinical_risk_engine.py</code></td>
+            <td>754</td>
+            <td>32,247</td>
+            <td>Python</td>
+            <td>ASCVD, Anemia WHO, Metabolic, Thyroid, eGFR, and longitudinal trends.</td>
+        </tr>
+        <tr>
+            <td><code>clinical_validator.py</code></td>
+            <td>729</td>
+            <td>40,896</td>
+            <td>Python</td>
+            <td>Biomarker severity tiering, hard guardrails, and disagreement penalties.</td>
+        </tr>
+        <tr>
+            <td><code>database.py</code></td>
+            <td>110</td>
+            <td>3,502</td>
+            <td>Python</td>
+            <td>Async SQLAlchemy engine, session management, and account seeding.</td>
+        </tr>
+        <tr>
+            <td><code>dependencies.py</code></td>
+            <td>89</td>
+            <td>2,724</td>
+            <td>Python</td>
+            <td>FastAPI dependencies for JWT bearer auth, verified doctor & admin checks.</td>
+        </tr>
+        <tr>
+            <td><code>models_db.py</code></td>
+            <td>109</td>
+            <td>5,652</td>
+            <td>Python</td>
+            <td>SQLAlchemy models: Doctor, AuthSession, AuditLog, and PatientReport.</td>
+        </tr>
+        <tr>
+            <td><code>ocr_engine.py</code></td>
+            <td>980</td>
+            <td>49,396</td>
+            <td>Python</td>
+            <td>EasyOCR line clustering, 31 biomarker regex parser, and VLM callers.</td>
+        </tr>
+        <tr>
+            <td><code>routes_admin.py</code></td>
+            <td>169</td>
+            <td>5,239</td>
+            <td>Python</td>
+            <td>Admin doctor verification queue, approvals, rejections, and suspensions.</td>
+        </tr>
+        <tr>
+            <td><code>routes_auth.py</code></td>
+            <td>318</td>
+            <td>12,024</td>
+            <td>Python</td>
+            <td>Registration, login, logout, profile update, and API key management.</td>
+        </tr>
+        <tr>
+            <td><code>routes_reports.py</code></td>
+            <td>161</td>
+            <td>5,748</td>
+            <td>Python</td>
+            <td>Doctor report listing, report retrieval, and digital sign-off endpoints.</td>
+        </tr>
+        <tr>
+            <td><code>routes_supabase.py</code></td>
+            <td>118</td>
+            <td>4,186</td>
+            <td>Python</td>
+            <td>Supabase connection testing, schema retrieval, and batch synchronizer.</td>
+        </tr>
+        <tr>
+            <td><code>supabase_client.py</code></td>
+            <td>342</td>
+            <td>14,572</td>
+            <td>Python</td>
+            <td>Direct async HTTP PostgREST API client for Supabase cloud tables.</td>
+        </tr>
+        <tr>
+            <td><code>supabase_schema.sql</code></td>
+            <td>114</td>
+            <td>4,185</td>
+            <td>SQL</td>
+            <td>PostgreSQL migration script with Row Level Security (RLS) policies.</td>
+        </tr>
+        <tr>
+            <td><code>synthetic_data_generator.py</code></td>
+            <td>122</td>
+            <td>4,949</td>
+            <td>Python</td>
+            <td>Synthetic clinical data generation for 3,000 cases across 8 classes.</td>
+        </tr>
+        <tr>
+            <td><code>train_models.py</code></td>
+            <td>109</td>
+            <td>4,116</td>
+            <td>Python</td>
+            <td>ML training pipeline benchmarking Logistic Regression, RF, and XGBoost.</td>
+        </tr>
+        <tr>
+            <td><code>dataset_downloader.py</code></td>
+            <td>81</td>
+            <td>3,227</td>
+            <td>Python</td>
+            <td>Hugging Face India Medical OCR Test parquet dataset downloader.</td>
+        </tr>
+        <tr>
+            <td><code>static/index.html</code></td>
+            <td>1,058</td>
+            <td>73,248</td>
+            <td>HTML5</td>
+            <td>Main physician clinical workstation dashboard and results interface.</td>
+        </tr>
+        <tr>
+            <td><code>static/app.js</code></td>
+            <td>1,980</td>
+            <td>89,257</td>
+            <td>JavaScript</td>
+            <td>Frontend state machine, Chart.js graphs, zoom/pan viewer, API wiring.</td>
+        </tr>
+        <tr>
+            <td><code>static/clinical_3d.js</code></td>
+            <td>379</td>
+            <td>13,864</td>
+            <td>JavaScript</td>
+            <td>Canvas 3D neural consensus sphere and spatial particle network.</td>
+        </tr>
+        <tr>
+            <td><code>static/style.css</code></td>
+            <td>2,409</td>
+            <td>78,832</td>
+            <td>CSS3</td>
+            <td>Comprehensive dark-mode design system, glassmorphism, print CSS.</td>
+        </tr>
+        <tr>
+            <td><code>static/admin.html</code></td>
+            <td>464</td>
+            <td>18,751</td>
+            <td>HTML5</td>
+            <td>Administrator management portal for doctor credential approvals.</td>
+        </tr>
+        <tr>
+            <td><code>static/login.html</code></td>
+            <td>312</td>
+            <td>10,901</td>
+            <td>HTML5</td>
+            <td>Doctor sign-in portal with validation feedback and session routing.</td>
+        </tr>
+        <tr>
+            <td><code>static/register.html</code></td>
+            <td>433</td>
+            <td>17,775</td>
+            <td>HTML5</td>
+            <td>Physician onboarding portal with real-time SLMC and NIC checking.</td>
+        </tr>
+        <tr>
+            <td><code>README.md</code></td>
+            <td>67</td>
+            <td>3,288</td>
+            <td>Markdown</td>
+            <td>Project documentation, signature flow, quickstart, testing credentials.</td>
+        </tr>
+        <tr>
+            <td><code>data/model_comparison.json</code></td>
+            <td>209</td>
+            <td>7,086</td>
+            <td>JSON</td>
+            <td>Machine learning performance metrics, confusion matrices, and latencies.</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="footer-note">
+    CliniQ AI v2.1 • Complete Architecture & Technical Analysis Report • Generated on October 14, 2026
+</div>
+
+</body>
+</html>

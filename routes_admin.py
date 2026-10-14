@@ -8,15 +8,48 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from datetime import datetime, timezone
 from database import get_db
 from models_db import Doctor, AuditLog
 from dependencies import get_admin_doctor
+from auth import compute_audit_hash
 
 router = APIRouter(prefix="/api/admin", tags=["Administration"])
 
 
 class RejectRequest(BaseModel):
     reason: str = "Application did not meet verification requirements."
+
+
+async def log_admin_event(db: AsyncSession, event_type: str, actor_id: str = None,
+                          target_id: str = None, details: dict = None):
+    last_res = await db.execute(select(AuditLog).order_by(AuditLog.id.desc()).limit(1))
+    last_log = last_res.scalar_one_or_none()
+    prev_hash = last_log.row_hash if (last_log and last_log.row_hash) else None
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    details_str = json.dumps(details) if details else None
+    row_hash = compute_audit_hash(
+        prev_hash=prev_hash,
+        event_type=event_type,
+        actor_id=actor_id,
+        target_id=target_id,
+        occurred_at_iso=now.isoformat(),
+        details_str=details_str
+    )
+
+    db.add(AuditLog(
+        event_type=event_type,
+        actor_id=actor_id,
+        target_id=target_id,
+        target_type="doctor",
+        details=details_str,
+        prev_hash=prev_hash,
+        row_hash=row_hash,
+        occurred_at=now
+    ))
+    await db.commit()
+
 
 
 @router.get("/registrations")
@@ -66,14 +99,15 @@ async def approve_registration(
 
     doctor.status = "VERIFIED"
     doctor.approved_by = admin.id
-    db.add(AuditLog(
+    await db.commit()
+
+    await log_admin_event(
+        db,
         event_type="DOCTOR_APPROVED",
         actor_id=admin.id,
         target_id=doctor.id,
-        target_type="doctor",
-        details=json.dumps({"approved_slmc": doctor.slmc_number})
-    ))
-    await db.commit()
+        details={"approved_slmc": doctor.slmc_number}
+    )
 
     return {
         "success": True,
@@ -98,14 +132,15 @@ async def reject_registration(
 
     doctor.status = "REJECTED"
     doctor.rejection_reason = body.reason.strip()
-    db.add(AuditLog(
+    await db.commit()
+
+    await log_admin_event(
+        db,
         event_type="DOCTOR_REJECTED",
         actor_id=admin.id,
         target_id=doctor.id,
-        target_type="doctor",
-        details=json.dumps({"reason": body.reason})
-    ))
-    await db.commit()
+        details={"reason": body.reason}
+    )
 
     return {
         "success": True,

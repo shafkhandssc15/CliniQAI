@@ -12,12 +12,67 @@ from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
+import hashlib
+import time
+
 # ── Config ─────────────────────────────────────────────────────────────────────
-SECRET_KEY = os.environ.get("CLINIQ_SECRET_KEY", "cliniq-dev-secret-key-change-in-production-32chars!")
+DEFAULT_DEV_SECRET = "cliniq-dev-secret-key-change-in-production-32chars!"
+SECRET_KEY = os.environ.get("CLINIQ_SECRET_KEY", DEFAULT_DEV_SECRET)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8  # 8-hour sessions for clinic workflow
 
+# Security guard: refuse to boot in production with default development secret
+ENVIRONMENT = os.environ.get("ENVIRONMENT", os.environ.get("CLINIQ_ENV", "development")).lower()
+if ENVIRONMENT in ("production", "prod") and (SECRET_KEY == DEFAULT_DEV_SECRET or len(SECRET_KEY) < 32):
+    raise RuntimeError(
+        "CRITICAL SECURITY CONFIGURATION ERROR: Running in production mode with default or weak CLINIQ_SECRET_KEY. "
+        "You must configure a strong, random 32+ character key in environment variables."
+    )
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+# ── Tamper-Evident Audit Chain ─────────────────────────────────────────────────
+def compute_audit_hash(
+    prev_hash: Optional[str],
+    event_type: str,
+    actor_id: Optional[str],
+    target_id: Optional[str],
+    occurred_at_iso: str,
+    details_str: Optional[str]
+) -> str:
+    """Computes a cryptographic SHA-256 hash linking each audit entry to the previous row."""
+    payload = f"{prev_hash or 'GENESIS'}|{event_type}|{actor_id or ''}|{target_id or ''}|{occurred_at_iso}|{details_str or ''}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+# ── In-Memory Login Rate Limiter (Brute-Force Protection) ─────────────────────────
+_LOGIN_ATTEMPTS: dict[str, list[float]] = {}
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_WINDOW_SECONDS = 900  # 15 minutes
+
+def is_login_rate_limited(identifier: str) -> tuple[bool, int]:
+    """Checks if IP or email has exceeded max failed login attempts."""
+    now = time.time()
+    history = _LOGIN_ATTEMPTS.get(identifier, [])
+    # Keep only attempts within window
+    active_attempts = [t for t in history if (now - t) < LOCKOUT_WINDOW_SECONDS]
+    _LOGIN_ATTEMPTS[identifier] = active_attempts
+    if len(active_attempts) >= MAX_LOGIN_ATTEMPTS:
+        retry_after = int(LOCKOUT_WINDOW_SECONDS - (now - active_attempts[0]))
+        return True, max(1, retry_after)
+    return False, 0
+
+def record_login_failure(identifier: str):
+    now = time.time()
+    if identifier not in _LOGIN_ATTEMPTS:
+        _LOGIN_ATTEMPTS[identifier] = []
+    _LOGIN_ATTEMPTS[identifier].append(now)
+
+def record_login_success(identifier: str):
+    if identifier in _LOGIN_ATTEMPTS:
+        del _LOGIN_ATTEMPTS[identifier]
+
 
 
 # ── Password ────────────────────────────────────────────────────────────────────

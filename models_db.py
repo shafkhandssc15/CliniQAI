@@ -70,6 +70,8 @@ class AuditLog(Base):
     target_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     details: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON string
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)  # Cryptographic chain
+    row_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)   # SHA-256 tamper-evident hash
     occurred_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
 

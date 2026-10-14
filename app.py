@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 from ocr_engine import (
     extract_text_from_image,
+    deidentify_report_image,
     parse_biomarkers,
     extract_patient_demographics,
     run_rule_based_engine,
@@ -39,7 +40,7 @@ from ocr_engine import (
     get_easyocr_reader
 )
 
-from clinical_risk_engine import compute_comprehensive_risk_profile
+from clinical_risk_engine import compute_comprehensive_risk_profile, generate_trilingual_summary
 from clinical_validator import compute_validated_ensemble
 
 
@@ -402,8 +403,11 @@ async def analyze_report(
         image_bytes = await file.read()
         total_start = time.time()
 
-        # 1. OCR
-        ocr_text, ocr_time = extract_text_from_image(image_bytes)
+        # 1. OCR (and bounding boxes for PII redaction)
+        ocr_text, ocr_time, ocr_bboxes = extract_text_from_image(image_bytes, return_bboxes=True)
+
+        # Sri Lanka PDPA (2022) compliant de-identification before cloud VLM transmission
+        deidentified_image_bytes = deidentify_report_image(image_bytes, ocr_bboxes)
 
         # 2. Biomarker parsing
         parsed_values, extracted_flags = parse_biomarkers(ocr_text)
@@ -462,28 +466,27 @@ async def analyze_report(
             os.environ.get("GEMINI_API_KEY", "")
         )
 
-
         eff_roar = os.environ.get("ROAR_API_KEY", "").strip()
 
-        # 6 & 7. Run Cloud VLMs (NVIDIA NIM / Gemini / Roar AI Gateway) in parallel
+        # 6 & 7. Run Cloud VLMs (NVIDIA NIM / Gemini / Roar AI Gateway) in parallel with de-identified images
         import concurrent.futures
         
         def call_nvidia():
             if eff_nvidia:
-                print(f"[{current_doctor.slmc_number}] Triggering NVIDIA NIM (Llama 3.2 Vision)...")
-                return run_nvidia_nim_vlm(image_bytes, eff_nvidia)
+                print(f"[{current_doctor.slmc_number}] Triggering NVIDIA NIM (Llama 3.2 Vision) with de-identified image...")
+                return run_nvidia_nim_vlm(deidentified_image_bytes, eff_nvidia)
             elif eff_roar:
                 print(f"[{current_doctor.slmc_number}] Triggering Roar AI Gateway (Llama 3.3)...")
-                return run_roar_ai_vlm(image_bytes, eff_roar, model_name="llama-3.3-70b")
+                return run_roar_ai_vlm(deidentified_image_bytes, eff_roar, model_name="llama-3.3-70b")
             return {"error": "No NVIDIA API key configured. Add it in API Settings.", "latency": 0.0}
 
         def call_gemini():
             if eff_gemini:
-                print(f"[{current_doctor.slmc_number}] Triggering Gemini 2.5 Flash...")
-                return run_gemini_vlm(image_bytes, eff_gemini)
+                print(f"[{current_doctor.slmc_number}] Triggering Gemini 2.5 Flash with de-identified image...")
+                return run_gemini_vlm(deidentified_image_bytes, eff_gemini)
             elif eff_roar:
                 print(f"[{current_doctor.slmc_number}] Triggering Roar AI Gateway (Gemini 3.8 Flash)...")
-                return run_roar_ai_vlm(image_bytes, eff_roar, model_name="gemini-3.8-flash")
+                return run_roar_ai_vlm(deidentified_image_bytes, eff_roar, model_name="gemini-3.8-flash")
             return {"error": "No Gemini API key configured. Add it in API Settings.", "latency": 0.0}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
@@ -747,6 +750,12 @@ async def analyze_report(
             "through clinical correlation, patient history, and physical examination before any treatment decisions."
         )
 
+        # 13b. Trilingual patient-facing takeaway summary
+        trilingual_summary = generate_trilingual_summary(
+            ensemble.get("primary_diagnosis", ""),
+            m1.get("findings", [])
+        )
+
         response_payload = {
             "success": True,
             "filename": file.filename,
@@ -776,6 +785,12 @@ async def analyze_report(
             "borderline_flags": m1.get("borderline_flags", []),
             "clinical_cautions": m1.get("cautions", []),
             "risk_profile": risk_profile,
+            "dengue_trajectory": risk_profile.get("dengue_trajectory"),
+            "ckdu_surveillance": risk_profile.get("ckdu_surveillance"),
+            "trilingual_summary": trilingual_summary,
+            "consensus_abstention": ensemble.get("is_abstaining", False),
+            "rules_veto_applied": ensemble.get("rules_veto_applied", False),
+            "recommended_confirmatory_tests": ensemble.get("recommended_tests", []),
             "clinical_reasoning": clinical_reasoning,
             "clinical_inquiries": risk_profile.get("clinical_inquiries", []),
             "processing_time_sec": total_time,

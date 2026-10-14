@@ -45,22 +45,53 @@ DROP POLICY IF EXISTS "Doctor isolated read patient_reports" ON public.patient_r
 DROP POLICY IF EXISTS "Doctor isolated insert patient_reports" ON public.patient_reports;
 DROP POLICY IF EXISTS "Doctor isolated update patient_reports" ON public.patient_reports;
 
--- Doctor Isolation Policy: Ensure doctors only read their own patient records
+-- Doctor Isolation Policy: Enforce cryptographic doctor ownership
+-- Verifies auth.uid() OR verified signed JWT claim (sub / doctor_id)
 CREATE POLICY "Doctor isolated read patient_reports"
     ON public.patient_reports FOR SELECT
-    TO anon, authenticated
-    USING (true);  -- API gateway filters by doctor_id in query (doctor_id=eq.{doctor_id})
+    TO authenticated, anon
+    USING (
+        -- Matches Supabase Auth UID or signed JWT sub claim
+        doctor_id = COALESCE(
+            auth.uid()::text,
+            (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'),
+            (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'doctor_id')
+        )
+        -- Or authenticated Admin override
+        OR (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role') = 'ADMIN'
+    );
 
 CREATE POLICY "Doctor isolated insert patient_reports"
     ON public.patient_reports FOR INSERT
-    TO anon, authenticated
-    WITH CHECK (true);
+    TO authenticated, anon
+    WITH CHECK (
+        doctor_id = COALESCE(
+            auth.uid()::text,
+            (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'),
+            (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'doctor_id')
+        )
+        OR (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role') = 'ADMIN'
+    );
 
 CREATE POLICY "Doctor isolated update patient_reports"
     ON public.patient_reports FOR UPDATE
-    TO anon, authenticated
-    USING (true)
-    WITH CHECK (true);
+    TO authenticated, anon
+    USING (
+        doctor_id = COALESCE(
+            auth.uid()::text,
+            (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'),
+            (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'doctor_id')
+        )
+        OR (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role') = 'ADMIN'
+    )
+    WITH CHECK (
+        doctor_id = COALESCE(
+            auth.uid()::text,
+            (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'),
+            (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'doctor_id')
+        )
+        OR (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role') = 'ADMIN'
+    );
 
 
 -- 2. Create Doctors Table (Mirror & Authentication Registry)

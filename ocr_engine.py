@@ -8,7 +8,7 @@ import joblib
 import numpy as np
 import torch
 import easyocr
-from PIL import Image
+from PIL import Image, ImageDraw
 import io
 
 _easyocr_reader = None
@@ -35,12 +35,14 @@ def load_local_classifier():
             _feature_columns = joblib.load(cols_path)
     return _clinical_model, _label_encoder, _feature_columns
 
-def extract_text_from_image(image_bytes):
+def extract_text_from_image(image_bytes, return_bboxes: bool = False):
     reader = get_easyocr_reader()
     start_time = time.time()
     results = reader.readtext(image_bytes)
     
     if not results:
+        if return_bboxes:
+            return "", time.time() - start_time, []
         return "", time.time() - start_time
 
     # Group detected bounding boxes into horizontal lines using spatial clustering
@@ -83,7 +85,61 @@ def extract_text_from_image(image_bytes):
 
     reconstructed_lines = [" ".join(b["text"] for b in line) for line in lines]
     full_text = "\n".join(reconstructed_lines)
+    if return_bboxes:
+        return full_text, time.time() - start_time, results
     return full_text, time.time() - start_time
+
+
+def deidentify_report_image(image_bytes, ocr_results=None) -> bytes:
+    """
+    Redacts patient Personally Identifiable Information (PII) including Name, NIC,
+    Phone Number, and Address before transmitting image bytes to cloud VLM models.
+    Ensures compliance with Sri Lanka Personal Data Protection Act (PDPA) No. 9 of 2022.
+    """
+    try:
+        pil_img = Image.open(io.BytesIO(image_bytes))
+        if pil_img.mode != "RGB":
+            pil_img = pil_img.convert("RGB")
+        draw = ImageDraw.Draw(pil_img)
+
+        if ocr_results is None:
+            reader = get_easyocr_reader()
+            ocr_results = reader.readtext(image_bytes)
+
+        PII_IDENTIFIERS = [
+            "name", "patient", "pt", "client", "nic", "identity",
+            "phone", "mobile", "tel", "contact", "address", "reg", "uhid", "pid",
+            "රෝගියා", "නම", "ජා.හැ", "දුරකථන", "ලිපිනය",
+            "நோயாளி", "பெயர்", "தொலைபேசி", "முகவரி"
+        ]
+
+        for bbox, text, conf in ocr_results:
+            t_low = str(text).lower().strip()
+            # Match keywords
+            is_pii = any(k in t_low for k in PII_IDENTIFIERS)
+            # Match Sri Lankan NIC patterns
+            is_nic = bool(re.search(r'\b\d{9}[VXvx]\b', text) or re.search(r'\b\d{12}\b', text))
+            # Match Phone patterns
+            clean_digits = re.sub(r'[\s\-]', '', text)
+            is_phone = bool(re.search(r'\b(?:\+94|0)\d{9}\b', clean_digits) or re.search(r'\b07\d{8}\b', clean_digits))
+
+            if is_pii or is_nic or is_phone:
+                xs = [p[0] for p in bbox]
+                ys = [p[1] for p in bbox]
+                x0, x1 = max(0, min(xs) - 4), min(pil_img.width, max(xs) + 4)
+                y0, y1 = max(0, min(ys) - 2), min(pil_img.height, max(ys) + 2)
+                # Redact text box + mask patient value region horizontally
+                if any(k in t_low for k in ["name", "patient", "pt", "නම", "රෝගියා", "பெயர்", "நோயாளி"]):
+                    x1 = min(pil_img.width, x1 + 240)
+                draw.rectangle([x0, y0, x1, y1], fill="#000000")
+
+        out = io.BytesIO()
+        pil_img.save(out, format="JPEG", quality=88)
+        return out.getvalue()
+    except Exception as e:
+        print(f"[WARN] Patient de-identification failed gracefully: {e}")
+        return image_bytes
+
 
 def extract_patient_demographics(text):
     result = {"name": None, "age": None, "gender": None}

@@ -16,7 +16,8 @@ from models_db import Doctor, AuthSession, AuditLog
 from auth import (
     hash_password, verify_password,
     create_access_token, create_email_verify_token,
-    validate_slmc, validate_nic, validate_and_normalize_phone
+    validate_slmc, validate_nic, validate_and_normalize_phone,
+    compute_audit_hash, is_login_rate_limited, record_login_failure, record_login_success
 )
 from dependencies import get_current_doctor, get_verified_doctor
 
@@ -67,13 +68,32 @@ class UpdateKeysRequest(BaseModel):
 async def log_event(db: AsyncSession, event_type: str, actor_id: str = None,
                     target_id: str = None, target_type: str = None,
                     ip: str = None, details: dict = None):
+    # Fetch previous entry to maintain cryptographic hash chain
+    last_res = await db.execute(select(AuditLog).order_by(AuditLog.id.desc()).limit(1))
+    last_log = last_res.scalar_one_or_none()
+    prev_hash = last_log.row_hash if (last_log and last_log.row_hash) else None
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    details_str = json.dumps(details) if details else None
+    row_hash = compute_audit_hash(
+        prev_hash=prev_hash,
+        event_type=event_type,
+        actor_id=actor_id,
+        target_id=target_id,
+        occurred_at_iso=now.isoformat(),
+        details_str=details_str
+    )
+
     log = AuditLog(
         event_type=event_type,
         actor_id=actor_id,
         target_id=target_id,
         target_type=target_type,
         ip_address=ip,
-        details=json.dumps(details) if details else None
+        details=details_str,
+        prev_hash=prev_hash,
+        row_hash=row_hash,
+        occurred_at=now
     )
     db.add(log)
     await db.commit()
@@ -203,17 +223,37 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login")
 async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    """Authenticate doctor and return JWT access token."""
+    """Authenticate doctor and return JWT access token with brute-force protection and token rotation."""
+    client_ip = request.client.host if request.client else "unknown"
+    account_key = body.email.lower()
+
+    # Rate limiting check
+    is_limited, retry_after = is_login_rate_limited(client_ip)
+    if not is_limited:
+        is_limited, retry_after = is_login_rate_limited(account_key)
+
+    if is_limited:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many failed login attempts. Account temporarily locked for security. Try again in {retry_after} seconds."
+        )
+
     result = await db.execute(select(Doctor).where(Doctor.email == body.email.lower()))
     doctor = result.scalar_one_or_none()
 
     if not doctor or not verify_password(body.password, doctor.password_hash):
-        await log_event(db, "LOGIN_FAILED", ip=request.client.host,
-                        details={"email": body.email})
+        record_login_failure(client_ip)
+        record_login_failure(account_key)
+        await log_event(db, "LOGIN_FAILED", ip=client_ip,
+                        details={"email": body.email, "reason": "Bad credentials"})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password."
         )
+
+    # Success: clear rate limit history
+    record_login_success(client_ip)
+    record_login_success(account_key)
 
     if doctor.is_suspended:
         raise HTTPException(403, detail="Your account has been suspended. Please contact the administrator.")
@@ -230,10 +270,20 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     if doctor.status == "REJECTED":
         raise HTTPException(403, detail=f"Your application was not approved. Reason: {doctor.rejection_reason or 'Not specified.'}")
 
-    # Create JWT
+    # Token Rotation: Revoke previous active sessions for this doctor
+    prev_sessions = await db.execute(
+        select(AuthSession).where(
+            AuthSession.doctor_id == doctor.id,
+            AuthSession.is_revoked == False
+        )
+    )
+    for s in prev_sessions.scalars().all():
+        s.is_revoked = True
+
+    # Create new JWT
     token, jti = create_access_token(doctor.id, doctor.role, doctor.status)
 
-    # Store session for revocation tracking
+    # Store new session
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=60 * 8)
     session = AuthSession(
         doctor_id=doctor.id,
@@ -246,7 +296,7 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     doctor.last_login_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
 
-    await log_event(db, "LOGIN_SUCCESS", actor_id=doctor.id, ip=request.client.host)
+    await log_event(db, "LOGIN_SUCCESS", actor_id=doctor.id, ip=client_ip)
 
     return {
         "access_token": token,
