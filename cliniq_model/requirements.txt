@@ -1,0 +1,7 @@
+numpy>=1.26
+pandas>=2.1
+scikit-learn>=1.4
+xgboost>=2.0
+matplotlib>=3.8   # train.py figure only
+pytest>=8         # tests only
+fastapi>=0.110    # integration_example.py only

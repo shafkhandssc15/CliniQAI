@@ -22,14 +22,9 @@ from dotenv import load_dotenv
 # Load .env file
 load_dotenv()
 
-DEFAULT_SUPABASE_URL = "https://gdxjzvbbgurmjqrxgqjh.supabase.co"
-DEFAULT_SUPABASE_KEY = "sb_publishable_7mRE0EaPvSpW-4deUma7qw__yltyWtp"
-
-
-
 def get_supabase_config():
-    """Retrieve cleaned Supabase URL and Key from environment or defaults."""
-    raw_url = os.environ.get("SUPABASE_URL", DEFAULT_SUPABASE_URL).strip()
+    """Retrieve cleaned Supabase URL and key from server environment only."""
+    raw_url = os.environ.get("SUPABASE_URL", "").strip()
     # Normalize URL: strip trailing /rest/v1 or trailing slashes
     if raw_url.endswith("/rest/v1/"):
         raw_url = raw_url[:-9]
@@ -37,7 +32,7 @@ def get_supabase_config():
         raw_url = raw_url[:-8]
     raw_url = raw_url.rstrip("/")
 
-    key = os.environ.get("SUPABASE_KEY", DEFAULT_SUPABASE_KEY).strip()
+    key = os.environ.get("SUPABASE_KEY", "").strip()
     return raw_url, key
 
 

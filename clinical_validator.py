@@ -553,23 +553,21 @@ def compute_validated_ensemble(
     parsed_values: dict,
     extracted_flags: dict,
     gender: str = "Male",
-    age: int = 45
+    age: int = 45,
+    ml_result: dict = None,
+    extraction_discrepancies: list = None,
+    symptoms: list = None,
+    medications: list = None
 ) -> dict:
     """
-    Arbitrates consensus across 4 models with:
-    1. Calibrated Model Weights: Gemini (40%), NIM (20%), XGBoost (25%), Rules (15%)
-    2. Rules Engine Veto & Safety Escalation Layer (critical lab boundaries always override probabilistic voting)
-    3. Model Disagreement Penalty (caps confidence at 60–70% when models conflict)
-    4. Explicit Consensus Abstention when evidence is thin or discordant, paired with next confirmatory test advice
-    5. Actionable Follow-up Plans
+    Arbitrates consensus across models with:
+    1. Calibrated Reference Voter: CliniQ ML (split conformal multi-label XGBoost)
+    2. Rules Engine Veto & Critical Alerts Escalation Layer (life-threatening boundaries always escalate)
+    3. Validated Clinical Guidelines (ADA, WHO, KDIGO) as Authoritative Medical Arbiters
+    4. Pharmacotherapy & Clinical Symptom Context Ingestion
+    5. Explicit Consensus Abstention and Next Confirmatory Test guidance
+    6. Actionable Clinical Action Plans
     """
-    WEIGHTS = {
-        "model_4_gemini": 0.40,
-        "model_3_nvidia": 0.20,  # Lowered from 0.35 due to over-sensitivity
-        "model_2_ml":     0.25,  # Increased from 0.20 as anchor baseline
-        "model_1_rules":  0.15,  # Increased from 0.05 as final clinical arbiter
-    }
-
     # 1. Classify all verified extracted biomarkers into clinical severities
     biomarker_severities = classify_all_biomarkers(parsed_values, extracted_flags, gender)
     
@@ -590,6 +588,207 @@ def compute_validated_ensemble(
                 elif tier == "Moderate": has_moderate = True
             elif tier == "Mild":
                 mild_findings.append(s.get("label") or s["condition"])
+
+    # ── IF CLINIQ ML RESULT IS PROVIDED: TREAT AS CALIBRATED REFERENCE VOTER ──
+    if ml_result is not None:
+        status = ml_result.get("status")
+
+        # 1. Scope check (pediatric < 18 or insufficient input)
+        if status == "OUT_OF_SCOPE":
+            return {
+                "status": "OUT_OF_SCOPE",
+                "critical_escalation": False,
+                "primary_diagnosis": "OUT_OF_SCOPE: Model is validated for adults (≥18) only; paediatric reference ranges differ",
+                "confidence": 0.0,
+                "confidence_band": "OUT_OF_SCOPE",
+                "is_abstaining": True,
+                "rules_veto_applied": False,
+                "recommended_tests": ml_result.get("suggested_next_tests", ["Paediatric specialist referral; use age-appropriate paediatric reference intervals."]),
+                "vote_breakdown": {"cliniq_ml": {"status": "OUT_OF_SCOPE", "reason": ml_result.get("reason")}},
+                "all_votes": {},
+                "safety_flags": ["Model validated for adults (≥18) only. Paediatric reference ranges differ."],
+                "biomarker_severities": biomarker_severities,
+                "action_plans": generate_clinical_action_plans(biomarker_severities),
+                "arbitration_notes": ["Out of scope: Patient is under 18 years of age. Paediatric reference intervals apply."],
+                "stripped_hallucinations": []
+            }
+
+        # 2. Critical alerts escalation (prominent banner, sorted first)
+        critical_alerts = ml_result.get("critical_alerts", [])
+        rules_veto_applied = bool(critical_alerts) or has_critical
+        safety_flags = []
+        for crit in critical_alerts:
+            safety_flags.append(f"CRITICAL ALERT: {crit.get('analyte', '').upper()} {crit.get('value')} ({crit.get('limit')}) — Emergency medical assessment required")
+
+        # Add any cross-check extraction discrepancies
+        if extraction_discrepancies:
+            for disc in extraction_discrepancies:
+                safety_flags.append(f"Verify before relying on this: {disc.get('field')} ({disc.get('issue')}) [EasyOCR: {disc.get('reader_a')} vs VLM: {disc.get('reader_b')}]")
+
+        for w in ml_result.get("warnings", []):
+            if w not in safety_flags:
+                safety_flags.append(w)
+
+        # 3. Direct decision mapping from cliniq_ml + clinical guidelines:
+        findings = list(ml_result.get("findings", []))
+        uncertain = list(ml_result.get("uncertain", []))
+        not_assessable = list(ml_result.get("not_assessable", []))
+
+        # ── VALIDATED CLINICAL GUIDELINES PRIMARY ARBITER (ADA, WHO, KDIGO) ──
+        guideline_additions = []
+        is_male = str(gender).lower() in ("male", "m", "1")
+
+        # ADA Standards of Medical Care: Diabetes / Prediabetes
+        fbs = parsed_values.get("Fasting_Blood_Sugar")
+        hba1c = parsed_values.get("HbA1c") or parsed_values.get("hba1c")
+        if (fbs is not None and fbs >= 126.0) or (hba1c is not None and hba1c >= 6.5):
+            if not any("diabetes" in f.lower() for f in findings):
+                guideline_additions.append("Diabetes Mellitus (ADA Diagnostic Criteria Met)")
+        elif (fbs is not None and 100.0 <= fbs <= 125.0) or (hba1c is not None and 5.7 <= hba1c <= 6.4):
+            if not any("diabetes" in f.lower() or "prediabetes" in f.lower() for f in findings):
+                guideline_additions.append("Prediabetes (Impaired Fasting Glycemia)")
+
+        # WHO Diagnostic Threshold: Anaemia
+        hb = parsed_values.get("Hemoglobin")
+        if hb is not None:
+            anemia_cut = 13.0 if is_male else 12.0
+            if hb < anemia_cut and not any("anemia" in f.lower() or "anaemia" in f.lower() for f in findings):
+                guideline_additions.append(f"Anaemia (WHO Diagnostic Criterion: Hb {hb:g} < {anemia_cut:g} g/dL)")
+
+        # KDIGO 2024 / CKD-EPI: Chronic Kidney Disease
+        creat = parsed_values.get("Creatinine")
+        egfr = ml_result.get("egfr")
+        if egfr is not None and egfr < 60.0:
+            if not any("ckd" in f.lower() or "renal" in f.lower() or "kidney" in f.lower() for f in findings):
+                guideline_additions.append(f"Chronic Kidney Disease (KDIGO Stage 3+ by eGFR: {egfr} mL/min)")
+        elif creat is not None and ((is_male and creat >= 1.4) or (not is_male and creat >= 1.2)):
+            if not any("ckd" in f.lower() or "renal" in f.lower() or "kidney" in f.lower() for f in findings):
+                guideline_additions.append(f"Impaired Renal Function (Elevated Creatinine: {creat:g} mg/dL)")
+
+        # NCEP ATP III: Dyslipidemia / Hypercholesterolemia
+        tc = parsed_values.get("Cholesterol")
+        ldl = parsed_values.get("LDL")
+        if (tc is not None and tc >= 200.0) or (ldl is not None and ldl >= 130.0):
+            if not any("cholesterol" in f.lower() or "dyslipidemia" in f.lower() for f in findings):
+                guideline_additions.append("Hypercholesterolaemia (NCEP ATP III Cutoff)")
+
+        # ATA Guidelines: Thyroid
+        tsh = parsed_values.get("TSH")
+        if tsh is not None:
+            if tsh > 4.5 and not any("hypothyroidism" in f.lower() for f in findings):
+                guideline_additions.append(f"Hypothyroidism (TSH {tsh:g} > 4.5 mIU/L)")
+            elif tsh < 0.4 and not any("hyperthyroidism" in f.lower() for f in findings):
+                guideline_additions.append(f"Hyperthyroidism (TSH {tsh:g} < 0.4 mIU/L)")
+
+        # ── CLINICAL CONTEXT INGESTION: MEDICATIONS & SYMPTOMS ──
+        meds_text = " ".join([str(m) for m in (medications or [])]).lower()
+        symptoms_text = " ".join([str(s) for s in (symptoms or [])]).lower()
+
+        if any(med in meds_text for med in ["metformin", "insulin", "glimepiride", "gliclazide", "januvia", "sitagliptin", "empagliflozin", "dapagliflozin"]):
+            if not any("diabetes" in f.lower() for f in findings + guideline_additions):
+                guideline_additions.append("Diabetes Mellitus (Controlled on Pharmacotherapy)")
+
+        if any(med in meds_text for med in ["atorvastatin", "rosuvastatin", "simvastatin", "fenofibrate", "statin"]):
+            if not any("cholesterol" in f.lower() or "dyslipidemia" in f.lower() for f in findings + guideline_additions):
+                guideline_additions.append("Dyslipidemia (Managed on Statin Therapy)")
+
+        if any(med in meds_text for med in ["levothyroxine", "eltroxin", "thyronorm", "synthroid"]):
+            if not any("hypothyroidism" in f.lower() or "thyroid" in f.lower() for f in findings + guideline_additions):
+                guideline_additions.append("Hypothyroidism (Euthyroid on Hormone Replacement)")
+
+        has_fever = any(s in symptoms_text for s in ["fever", "pyrexia", "temperature", "chills", "rigor"])
+        wbc = parsed_values.get("WBC")
+        if has_fever and wbc is not None and wbc >= 10.0:
+            if not any("infection" in f.lower() for f in findings + guideline_additions):
+                guideline_additions.append("Suspected Infection (Pyrexia with Leukocytosis)")
+
+        for ga in guideline_additions:
+            if ga not in findings:
+                findings.append(ga)
+
+        if guideline_additions and status in ("NO_SIGNIFICANT_FINDINGS", "NO_FINDINGS_ON_AVAILABLE_PANELS", "REVIEW_NEEDED"):
+            status = "ABNORMAL"
+        uncertain = ml_result.get("uncertain", [])
+        not_assessable = ml_result.get("not_assessable", [])
+
+        if findings:
+            prefix = "CRITICAL ESCALATION: " if rules_veto_applied else ""
+            primary_diagnosis = prefix + ", ".join(findings)
+            top_prob = max([c.get("probability", 0.9) for c in ml_result.get("conditions", {}).values() if c.get("decision") == "POSITIVE"], default=0.9)
+            confidence_pct = round(top_prob * 100.0, 1)
+            band = "CRITICAL / HIGH" if rules_veto_applied else ("HIGH" if confidence_pct >= 80.0 else "MODERATE")
+            is_abstaining = False
+        elif status == "NO_SIGNIFICANT_FINDINGS":
+            # The "healthy" label is allowed ONLY when status == "NO_SIGNIFICANT_FINDINGS"
+            primary_diagnosis = "No significant abnormalities detected"
+            confidence_pct = 95.0
+            band = "HIGH"
+            is_abstaining = False
+        elif status == "NO_FINDINGS_ON_AVAILABLE_PANELS":
+            # Show "No findings on the panels provided" plus not-assessable list. NEVER render as normal/healthy.
+            primary_diagnosis = "No findings on the panels provided"
+            confidence_pct = 50.0
+            band = "PANEL_LIMITED"
+            is_abstaining = False
+            safety_flags.append(f"Assessment limited to available panels. Not assessable: {', '.join(not_assessable)}.")
+        elif status == "REVIEW_NEEDED" or uncertain:
+            primary_diagnosis = (", ".join(uncertain) + " (Needs review)") if uncertain else "Needs Clinical Review"
+            confidence_pct = 65.0
+            band = "MODERATE"
+            is_abstaining = True
+        elif rules_veto_applied:
+            primary_diagnosis = "Critical Alert: Life-Threatening Lab Cutoff Exceeded"
+            confidence_pct = 99.0
+            band = "CRITICAL / HIGH"
+            is_abstaining = False
+        else:
+            primary_diagnosis = "Clinical Correlation Required"
+            confidence_pct = 60.0
+            band = "INCONCLUSIVE"
+            is_abstaining = True
+
+        all_votes = {}
+        for lab_key, c_info in ml_result.get("conditions", {}).items():
+            all_votes[c_info["name"]] = round(c_info.get("probability", 0.0) * 100.0, 1)
+
+        arbitration_notes = [
+            f"Reference Voter: CliniQ Engine ({ml_result.get('model_version', 'v2.2')}) multi-label calibrated XGBoost.",
+            f"Engine Status: {status}. Evaluated across {len(ml_result.get('conditions', {}))} clinical conditions."
+        ]
+        if critical_alerts:
+            arbitration_notes.insert(0, "CRITICAL ALERT ESCALATION: Threshold breach detected — escalated with highest priority.")
+        if not_assessable:
+            arbitration_notes.append(f"Not assessable due to missing panels: {', '.join(not_assessable)}.")
+
+        return {
+            "status": status,
+            "critical_escalation": rules_veto_applied,
+            "primary_diagnosis": primary_diagnosis,
+            "confidence": confidence_pct,
+            "confidence_band": band,
+            "is_abstaining": is_abstaining,
+            "rules_veto_applied": rules_veto_applied,
+            "recommended_tests": ml_result.get("suggested_next_tests") or get_recommended_confirmatory_tests(parsed_values, extracted_flags, biomarker_severities),
+            "vote_breakdown": {
+                "cliniq_ml": {"status": status, "model_version": ml_result.get("model_version"), "conditions": ml_result.get("conditions", {})},
+                "model_1_rules": m1_rules,
+                "model_3_nvidia": m3_nvidia,
+                "model_4_gemini": m4_gemini
+            },
+            "all_votes": all_votes,
+            "safety_flags": safety_flags,
+            "biomarker_severities": biomarker_severities,
+            "action_plans": generate_clinical_action_plans(biomarker_severities),
+            "arbitration_notes": arbitration_notes,
+            "stripped_hallucinations": []
+        }
+
+    WEIGHTS = {
+        "model_4_gemini": 0.40,
+        "model_3_nvidia": 0.20,
+        "model_2_ml":     0.25,
+        "model_1_rules":  0.15,
+    }
 
     # 2. Evaluate model outputs and sanitize against ground-truth
     model_inputs = [

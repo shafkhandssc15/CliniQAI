@@ -111,6 +111,7 @@ async def get_report(
 class ReviewBody(BaseModel):
     action: str       # confirm | modify | reject
     notes: Optional[str] = None
+    condition_labels: Optional[dict[str, Any]] = None
 
 
 @router.patch("/{patient_ref}/review")
@@ -133,6 +134,56 @@ async def update_review(
     valid_actions = {"confirm", "modify", "reject"}
     if body.action not in valid_actions:
         raise HTTPException(status_code=422, detail=f"action must be one of {valid_actions}")
+
+    from models_db import ConditionFeedback
+    from cliniq_ml.schema import LABELS
+
+    payload = {}
+    try:
+        payload = json.loads(report.full_payload)
+    except Exception:
+        pass
+
+    ml_data = payload.get("cliniq_ml", {})
+    conditions = ml_data.get("conditions", {})
+    cond_overrides = body.condition_labels or {}
+
+    for cond_key in LABELS:
+        cond_info = conditions.get(cond_key, {})
+        model_dec = cond_info.get("decision", "NOT_ASSESSABLE")
+        model_prob = cond_info.get("probability")
+
+        final_label = None
+        if cond_key in cond_overrides:
+            val = cond_overrides[cond_key]
+            if val in (1, "1", "POSITIVE", "positive", True):
+                final_label = 1
+            elif val in (0, "0", "NEGATIVE", "negative", False):
+                final_label = 0
+        elif body.action == "confirm":
+            if model_dec == "POSITIVE":
+                final_label = 1
+            elif model_dec == "NEGATIVE":
+                final_label = 0
+        elif body.action == "reject":
+            if model_dec == "POSITIVE":
+                final_label = 0
+        elif body.action == "modify":
+            if model_dec == "POSITIVE":
+                final_label = 1
+
+        fb = ConditionFeedback(
+            report_id=report.id,
+            patient_ref=report.patient_ref,
+            doctor_id=current_doctor.id,
+            condition_name=cond_key,
+            model_decision=model_dec,
+            model_probability=model_prob,
+            physician_decision=body.action.upper(),
+            final_label=final_label,
+            review_notes=body.notes
+        )
+        db.add(fb)
 
     report.review_action = body.action
     report.review_notes  = (body.notes or "").strip() or None

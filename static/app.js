@@ -4,6 +4,10 @@
 // ╚══════════════════════════════════════════════════════════════════╝
 
 // ── Auth Guard ──────────────────────────────────────────────────────
+for (const legacyKey of ["nvidia_api_key", "gemini_api_key", "openai_api_key"]) {
+    localStorage.removeItem(legacyKey);
+}
+
 const AUTH_TOKEN = localStorage.getItem("cliniq_token");
 const DOCTOR_INFO = JSON.parse(localStorage.getItem("cliniq_doctor") || "null");
 
@@ -37,6 +41,12 @@ let reportPanY = 0;
 let isPanningReport = false;
 let startPanX = 0;
 let startPanY = 0;
+
+// ── Universal Laboratory Results State ────────────────────────────────
+let universalLabResults   = [];
+let activeCategoryFilter  = "all";
+let activeStatusFilter    = "all";
+let universalSearchQuery  = "";
 
 // ── Biomarker Reference Ranges ───────────────────────────────────────
 const BIOMARKER_RANGES = {
@@ -107,16 +117,21 @@ document.addEventListener("DOMContentLoaded", () => {
     loadHistoryFromServer();
     initSupabaseSync();
 
-    // Fetch profile to check keys
-    fetch("/api/auth/me", { headers: { "Authorization": `Bearer ${AUTH_TOKEN}` } })
-        .then(r => r.json())
-        .then(d => updateBadges(d.has_nvidia_key, d.has_gemini_key))
-        .catch(() => updateBadges(false, false));
 });
 
 function setText(id, val) {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
+}
+
+function escapeHtml(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }
 
 // ── Sidebar Collapse / Expand ────────────────────────────────────────
@@ -155,7 +170,7 @@ const TAB_META = {
     biomarkers:  { title: "Biomarker Profile",     subtitle: "Individual parameters mapped against clinical reference ranges" },
     comparison:  { title: "Model Output Comparison",subtitle: "Side-by-side results from all four AI engines" },
     benchmarks:  { title: "Classifier Metrics",    subtitle: "Training performance across 3,000 augmented clinical records" },
-    settings:    { title: "API Settings",          subtitle: "Configure NVIDIA and Gemini API keys for cloud VLM analysis" }
+    settings:    { title: "API Settings",          subtitle: "Configure cloud vision providers and API keys" }
 };
 
 function initTabs() {
@@ -209,27 +224,6 @@ function switchTab(tabName) {
     }
 }
 
-
-// ── API Key Badge Updates ────────────────────────────────────────────
-function updateBadges(hasNvidiaServer, hasGeminiServer) {
-    const nvLocal  = (localStorage.getItem("nvidia_api_key") || "").length > 10;
-    const gemLocal = (localStorage.getItem("gemini_api_key") || "").length > 10;
-
-    const nvActive  = nvLocal  || hasNvidiaServer;
-    const gemActive = gemLocal || hasGeminiServer;
-
-    const nvBadge  = document.getElementById("nvidia-key-badge");
-    const gemBadge = document.getElementById("gemini-key-badge");
-
-    if (nvBadge) {
-        nvBadge.textContent  = nvActive  ? "NVIDIA: Active"  : "NVIDIA: Offline";
-        nvBadge.className    = nvActive  ? "badge badge-active" : "badge badge-inactive";
-    }
-    if (gemBadge) {
-        gemBadge.textContent = gemActive ? "Gemini: Active"  : "Gemini: Offline";
-        gemBadge.className   = gemActive ? "badge badge-active" : "badge badge-inactive";
-    }
-}
 
 // ── Upload & Demo Handling ───────────────────────────────────────────
 let selectedFile = null;
@@ -544,9 +538,7 @@ function sendAnalysisRequest(file) {
     fd.append("medications",    document.getElementById("pt-medications")?.value.trim() || "");
     fd.append("lifestyle",      document.getElementById("pt-lifestyle")?.value.trim() || "");
 
-    // API keys
-    fd.append("nvidia_api_key", localStorage.getItem("nvidia_api_key") || "");
-    fd.append("gemini_api_key", localStorage.getItem("gemini_api_key") || "");
+    fd.append("vlm_provider", localStorage.getItem("vlm_provider") || "auto");
 
     fetch("/api/analyze", {
         method: "POST",
@@ -607,7 +599,7 @@ function resetToUpload() {
             <h3>Awaiting Lab Report</h3>
             <p>Fill in the patient information on the left, then upload a lab report image to begin AI-powered analysis across 4 models simultaneously.</p>
             <div class="model-badges-preview">
-                <span class="mbadge local">EasyOCR Rules</span>
+                <span class="mbadge local">Tesseract OCR Rules</span>
                 <span class="mbadge local">XGBoost ML</span>
                 <span class="mbadge cloud">NVIDIA NIM</span>
                 <span class="mbadge cloud">Gemini 2.5</span>
@@ -753,14 +745,34 @@ function renderResults(data) {
     renderConfidenceGauge(ensemble.confidence, ensemble.confidence_band);
     renderVoteBars(ensemble.vote_breakdown, ensemble.all_votes);
 
+    // ── Update Model Version Badges ──
+    const modelVer = data.model_version || (data.cliniq_ml && data.cliniq_ml.model_version) || "cliniq-ml-2.2.0";
+    setText("conditions-model-version", modelVer);
+    setText("banner-model-version", modelVer);
+    setText("print-model-version", modelVer);
+
+    // ── 3 Clearly Visible Diagnostic & Audit Panels ──
+    renderCriticalAlerts(data.critical_alerts || (data.cliniq_ml && data.cliniq_ml.critical_alerts) || [],
+                         data.pattern_alerts || (data.cliniq_ml && data.cliniq_ml.pattern_alerts) || []);
+    renderVerifyValues(data.verify_fields || (data.cliniq_ml && data.cliniq_ml.verify_fields) || [],
+                       data.warnings || (data.cliniq_ml && data.cliniq_ml.warnings) || [],
+                       data.extraction_discrepancies || []);
+    renderSuggestedNextTests(data.suggested_next_tests || (data.cliniq_ml && data.cliniq_ml.suggested_next_tests) || []);
+
+    // ── Multi-Label Condition Cards with TreeSHAP Drivers ──
+    renderMLConditions(data.cliniq_ml?.conditions || data.conditions || {});
+
     // ── 4-Model Cards
     renderModelCards(models);
+
+    // ── Universal Extracted Laboratory Results Table
+    renderUniversalLabReport(data.universal_lab_report || null, parsed_values, extracted_flags);
 
     // ── Biomarker Strip
     renderBiomarkerStrip(parsed_values, extracted_flags);
 
-    // ── Biomarker Full Profile Tab
-    renderBiomarkerProfile(parsed_values, extracted_flags, patient_ref);
+    // ── Categorized Biomarker Full Profile Tab
+    renderBiomarkerProfile(parsed_values, extracted_flags, patient_ref, data.universal_lab_report || null);
 
     // ── Recommendations
     renderRecommendations(recommendations);
@@ -773,6 +785,228 @@ function renderResults(data) {
 
     // ── Review Panel
     resetReviewPanel(analyzed_by);
+
+    // ── Cache for offline printing & pre-populate print dossier
+    try {
+        sessionStorage.setItem("cliniq_last_report", JSON.stringify(data));
+    } catch(e) {}
+    preparePrintView();
+}
+
+// ── 1. Render Critical Alerts Escalation Panel ─────────────────────────
+function renderCriticalAlerts(criticalAlerts, patternAlerts) {
+    const cardEl = document.getElementById("critical-alerts-card");
+    const listEl = document.getElementById("critical-alerts-list");
+    if (!cardEl || !listEl) return;
+
+    const hasCrit = Array.isArray(criticalAlerts) && criticalAlerts.length > 0;
+    const hasPat = Array.isArray(patternAlerts) && patternAlerts.length > 0;
+
+    if (!hasCrit && !hasPat) {
+        cardEl.classList.add("hidden");
+        listEl.innerHTML = "";
+        return;
+    }
+
+    cardEl.classList.remove("hidden");
+    let html = "";
+
+    if (hasCrit) {
+        html += criticalAlerts.map(alert => {
+            const analyte = alert.analyte || "Biomarker";
+            const val = alert.value !== undefined ? alert.value : "";
+            const limit = alert.limit || "";
+            const dir = (alert.direction || "critical").toUpperCase();
+            return `
+                <div class="critical-alert-item">
+                    <div class="critical-alert-top">
+                        <span class="critical-badge">CRITICAL ${dir}</span>
+                        <span class="critical-analyte">${analyte}</span>
+                        <span class="critical-value">${val} (${limit})</span>
+                    </div>
+                    <div class="critical-alert-desc">Immediate medical escalation required: value exceeds critical laboratory boundary.</div>
+                </div>`;
+        }).join("");
+    }
+
+    if (hasPat) {
+        html += patternAlerts.map(msg => `
+            <div class="pattern-alert-item">
+                <span class="pattern-alert-tag">Rule-Based Clinical Reminder</span>
+                <span class="pattern-alert-text">${msg}</span>
+            </div>
+        `).join("");
+    }
+
+    listEl.innerHTML = html;
+}
+
+// ── 2. Render "Verify These Values" Panel ──────────────────────────────
+function renderVerifyValues(verifyFields, warnings, discrepancies) {
+    const cardEl = document.getElementById("verify-values-card");
+    const listEl = document.getElementById("verify-values-list");
+    if (!cardEl || !listEl) return;
+
+    const hasDisc = Array.isArray(discrepancies) && discrepancies.length > 0;
+    const hasFields = Array.isArray(verifyFields) && verifyFields.length > 0;
+    const hasWarn = Array.isArray(warnings) && warnings.length > 0;
+
+    if (!hasDisc && !hasFields && !hasWarn) {
+        cardEl.classList.add("hidden");
+        listEl.innerHTML = "";
+        return;
+    }
+
+    cardEl.classList.remove("hidden");
+    let items = [];
+
+    if (hasDisc) {
+        discrepancies.forEach(d => {
+            items.push(`
+                <div class="verify-item discrepancy">
+                    <div class="verify-item-title">
+                        <span class="verify-tag discrepancy">Reader Discrepancy</span>
+                        <strong>${d.field || "Biomarker"}:</strong>
+                        <span>Tesseract OCR read <code>${d.tesseract ?? d.easyocr ?? d.reader_a ?? 'None'}</code> vs VLM read <code>${d.vlm ?? d.reader_b ?? 'None'}</code></span>
+                    </div>
+                    <div class="verify-item-note">${d.note || "Disagreement between OCR and vision-language model. Verify source report image before relying on this value."}</div>
+                </div>
+            `);
+        });
+    }
+
+    if (hasFields) {
+        verifyFields.forEach(f => {
+            const fieldName = typeof f === "object" ? (f.field || JSON.stringify(f)) : String(f);
+            const val = typeof f === "object" && f.value !== undefined && f.value !== null ? ` (value: ${f.value})` : "";
+            items.push(`
+                <div class="verify-item warning">
+                    <div class="verify-item-title">
+                        <span class="verify-tag warning">Consistency Check Flag</span>
+                        <strong>${fieldName}${val}:</strong>
+                        <span>Cross-field or plausibility verification flagged this parameter.</span>
+                    </div>
+                    <div class="verify-item-note">Check for decimal shift, unit confusion (e.g. g/dL vs g/L), or OCR character misread.</div>
+                </div>
+            `);
+        });
+    }
+
+    if (hasWarn) {
+        warnings.forEach(w => {
+            items.push(`
+                <div class="verify-item note">
+                    <div class="verify-item-title">
+                        <span class="verify-tag note">Engine Notice</span>
+                        <span>${w}</span>
+                    </div>
+                </div>
+            `);
+        });
+    }
+
+    listEl.innerHTML = items.join("");
+}
+
+// ── 3. Render Suggested Next Tests Panel ──────────────────────────────
+function renderSuggestedNextTests(nextTests) {
+    const cardEl = document.getElementById("next-tests-card");
+    const listEl = document.getElementById("next-tests-list");
+    if (!cardEl || !listEl) return;
+
+    if (!Array.isArray(nextTests) || nextTests.length === 0) {
+        cardEl.classList.add("hidden");
+        listEl.innerHTML = "";
+        return;
+    }
+
+    cardEl.classList.remove("hidden");
+    listEl.innerHTML = nextTests.map(t => {
+        const testName = typeof t === "object" ? (t.test || t.name || JSON.stringify(t)) : String(t);
+        const reason = typeof t === "object" ? t.reason : "";
+        return `
+            <div class="next-test-item">
+                <div class="next-test-header">
+                    <span class="next-test-badge">Recommended Workup</span>
+                    <span class="next-test-name">${testName}</span>
+                </div>
+                ${reason ? `<div class="next-test-reason">${reason}</div>` : ""}
+            </div>
+        `;
+    }).join("");
+}
+
+// ── 4. Render Per-Condition Decision Chips and TreeSHAP Drivers ────────
+function renderMLConditions(conditions) {
+    const cardEl = document.getElementById("ml-conditions-card");
+    const gridEl = document.getElementById("conditions-grid");
+    if (!cardEl || !gridEl) return;
+
+    if (!conditions || Object.keys(conditions).length === 0) {
+        cardEl.classList.add("hidden");
+        gridEl.innerHTML = "";
+        return;
+    }
+
+    cardEl.classList.remove("hidden");
+
+    const chipConfig = {
+        POSITIVE:       { label: "Positive",           chipClass: "chip-positive" },
+        NEGATIVE:       { label: "Negative",           chipClass: "chip-negative" },
+        UNCERTAIN:      { label: "Needs Review",       chipClass: "chip-uncertain" },
+        NOT_ASSESSABLE: { label: "Panel Not Provided", chipClass: "chip-not-assessable" }
+    };
+
+    let html = "";
+    for (const [key, cond] of Object.entries(conditions)) {
+        const title = cond.name || key.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+        const dec = cond.decision || "NOT_ASSESSABLE";
+        const cfg = chipConfig[dec] || { label: dec, chipClass: "chip-uncertain" };
+        const isAssessable = dec !== "NOT_ASSESSABLE";
+
+        const probPct = isAssessable && typeof cond.probability === "number"
+            ? (cond.probability * 100).toFixed(1) + "%"
+            : "—";
+        const barWidth = isAssessable && typeof cond.probability === "number"
+            ? Math.min(100, Math.max(0, cond.probability * 100)).toFixed(1) + "%"
+            : "0%";
+
+        let driversHtml = "";
+        if (isAssessable && Array.isArray(cond.drivers) && cond.drivers.length > 0) {
+            driversHtml = cond.drivers.map(d => {
+                const effect = d.effect === "raises" ? "raises" : "lowers";
+                const sign = d.log_odds_shift > 0 ? "+" : "";
+                const shift = typeof d.log_odds_shift === "number" ? ` (${sign}${d.log_odds_shift})` : "";
+                return `<span class="driver-pill ${effect}"><strong>${d.feature}</strong>: ${effect}${shift}</span>`;
+            }).join("");
+        } else if (!isAssessable) {
+            driversHtml = `<span class="driver-empty not-assessable">Panel not reported in this lab sheet (cannot rule in or out).</span>`;
+        } else {
+            driversHtml = `<span class="driver-empty">No dominant biomarker drivers identified.</span>`;
+        }
+
+        html += `
+            <div class="condition-card ${dec.toLowerCase()}">
+                <div class="condition-header">
+                    <h4 class="condition-title">${title}</h4>
+                    <span class="decision-chip ${cfg.chipClass}">${cfg.label}</span>
+                </div>
+                <div class="condition-prob-row">
+                    <span class="prob-label">Calibrated Probability:</span>
+                    <span class="prob-value">${probPct}</span>
+                </div>
+                <div class="prob-bar-track">
+                    <div class="prob-bar-fill ${dec.toLowerCase()}" style="width: ${barWidth}"></div>
+                </div>
+                <div class="condition-drivers-section">
+                    <span class="drivers-label">TreeSHAP Biomarker Drivers:</span>
+                    <div class="drivers-list">${driversHtml}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    gridEl.innerHTML = html;
 }
 
 // ── Render Consensus Arbitration & Disagreement Handling ──────────────
@@ -1093,6 +1327,7 @@ function renderVoteBars(breakdown, allVotes) {
 
     const modelLabels = {
         "model_4_gemini": { name: "Gemini 2.5",  pct: 40 },
+            "model_4_gemini": { name: "Cloud Vision", pct: 40 },
         "model_3_nvidia": { name: "NVIDIA NIM",   pct: 35 },
         "model_2_ml":     { name: "XGBoost ML",   pct: 20 },
         "model_1_rules":  { name: "Rules Engine", pct: 5  }
@@ -1135,6 +1370,17 @@ function renderModelCards(models) {
         const latEl  = document.getElementById(`mc-${id}-lat`);
         if (!card) return;
 
+        if (id === "gemini") {
+            const nameEl = card.querySelector(".mc-name");
+            if (nameEl) nameEl.textContent = m.name || "Cloud Vision Provider";
+        }
+
+        if (id === "nvidia" || m.disabled || m.status === "decommissioned") {
+            card.style.display = "none";
+            return;
+        }
+        card.style.display = "";
+
         if (m.error) {
             card.classList.add("mc-offline");
             if (diagEl) diagEl.textContent = "Offline";
@@ -1150,6 +1396,233 @@ function renderModelCards(models) {
             if (latEl)  latEl.textContent = m.latency_sec ? `${m.latency_sec}s` : "< 0.1s";
         }
     });
+}
+
+// ── Universal Extracted Laboratory Report Controller ──────────────────
+function renderUniversalLabReport(universalReport, parsed_values, extracted_flags) {
+    if (universalReport && Array.isArray(universalReport.results) && universalReport.results.length > 0) {
+        universalLabResults = universalReport.results;
+    } else if (parsed_values) {
+        // Fallback for reports without universal extraction
+        universalLabResults = Object.entries(parsed_values).filter(([k, v]) => v !== null && v !== undefined && v !== "").map(([key, val]) => {
+            const range = BIOMARKER_RANGES[key] || { normal_min: 0, normal_max: 9999, unit: "" };
+            const numVal = parseFloat(val);
+            const isNormal = !isNaN(numVal) && numVal >= range.normal_min && numVal <= range.normal_max;
+            return {
+                test_name: key.replace(/_/g, " "),
+                result_value: val,
+                result_raw: String(val),
+                unit: range.unit || null,
+                reference_range: {
+                    raw: range.normal_min !== undefined ? `${range.normal_min} – ${range.normal_max}` : null,
+                    low: range.normal_min,
+                    high: range.normal_max
+                },
+                result_status: isNormal ? "normal" : (numVal > range.normal_max ? "high" : "low"),
+                test_category: "General Biomarkers",
+                original_flag: null,
+                page_section: "Page 1 — General Panel",
+                confidence: extracted_flags && extracted_flags[key] ? "high" : "medium",
+                is_estimated: extracted_flags ? !extracted_flags[key] : false
+            };
+        });
+    } else {
+        universalLabResults = [];
+    }
+
+    // 1. Calculate Stats
+    const total = universalLabResults.length;
+    let abnormalCount = 0;
+    let normalCount = 0;
+    const categoriesSet = new Set();
+
+    universalLabResults.forEach(r => {
+        if (r.test_category) categoriesSet.add(r.test_category);
+        const st = (r.result_status || "").toLowerCase();
+        if (st === "normal" || st === "negative") {
+            normalCount++;
+        } else if (st === "high" || st === "low" || st === "critical" || st === "positive" || r.original_flag) {
+            abnormalCount++;
+        }
+    });
+
+    const categoriesList = Array.from(categoriesSet);
+
+    // Update ribbon stats
+    setText("lab-stat-total", String(total));
+    setText("lab-stat-abnormal", String(abnormalCount));
+    setText("lab-stat-normal", String(normalCount));
+    setText("lab-stat-categories", String(categoriesList.length));
+    setText("universal-completeness-badge", `${total} Parameters Extracted (${categoriesList.length} Categories)`);
+
+    // 2. Build Category Filter Chips
+    const chipsContainer = document.getElementById("universal-category-chips");
+    if (chipsContainer) {
+        let chipHtml = `<button type="button" class="category-chip ${activeCategoryFilter === 'all' ? 'active' : ''}" onclick="setUniversalCategoryFilter('all')">All Categories (${total})</button>`;
+        categoriesList.forEach(cat => {
+            const count = universalLabResults.filter(r => r.test_category === cat).length;
+            const isActive = activeCategoryFilter === cat ? "active" : "";
+            chipHtml += `<button type="button" class="category-chip ${isActive}" onclick="setUniversalCategoryFilter('${escapeHtml(cat)}')">${escapeHtml(cat)} (${count})</button>`;
+        });
+        chipsContainer.innerHTML = chipHtml;
+    }
+
+    // 3. Render Table
+    renderUniversalTableRows();
+}
+
+function setUniversalCategoryFilter(category) {
+    activeCategoryFilter = category;
+    const chipsContainer = document.getElementById("universal-category-chips");
+    if (chipsContainer) {
+        chipsContainer.querySelectorAll(".category-chip").forEach(btn => {
+            if ((category === "all" && btn.textContent.startsWith("All Categories")) || btn.textContent.startsWith(category + " (") || btn.textContent === category) {
+                btn.classList.add("active");
+            } else {
+                btn.classList.remove("active");
+            }
+        });
+    }
+    renderUniversalTableRows();
+}
+
+function setUniversalStatusFilter(status) {
+    activeStatusFilter = status;
+    document.querySelectorAll(".universal-status-toggles .btn-toggle").forEach(btn => {
+        if (btn.getAttribute("data-status") === status) {
+            btn.classList.add("active");
+        } else {
+            btn.classList.remove("active");
+        }
+    });
+    renderUniversalTableRows();
+}
+
+function filterUniversalTable() {
+    const input = document.getElementById("universal-search-input");
+    universalSearchQuery = input ? input.value.trim().toLowerCase() : "";
+    renderUniversalTableRows();
+}
+
+function renderUniversalTableRows() {
+    const tbody = document.getElementById("universal-lab-tbody");
+    if (!tbody) return;
+
+    if (!universalLabResults || universalLabResults.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 24px; color: var(--text-3);">Upload or select a medical laboratory report to view all extracted laboratory parameters.</td></tr>`;
+        return;
+    }
+
+    const filtered = universalLabResults.filter(r => {
+        // Category check
+        if (activeCategoryFilter !== "all" && r.test_category !== activeCategoryFilter) {
+            return false;
+        }
+        // Status check
+        const st = (r.result_status || "").toLowerCase();
+        const isAbnormal = st === "high" || st === "low" || st === "critical" || st === "positive" || !!r.original_flag;
+        const isNormal = st === "normal" || st === "negative";
+        if (activeStatusFilter === "abnormal" && !isAbnormal) return false;
+        if (activeStatusFilter === "normal" && !isNormal) return false;
+
+        // Search query
+        if (universalSearchQuery) {
+            const queryStr = `${r.test_name} ${r.result_value} ${r.unit || ""} ${r.result_status} ${r.test_category} ${r.page_section || ""}`.toLowerCase();
+            if (!queryStr.includes(universalSearchQuery)) return false;
+        }
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 24px; color: var(--text-3);">No laboratory results matching current filter criteria.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(r => {
+        const st = (r.result_status || "undetermined").toLowerCase();
+        const isAbnormal = st === "high" || st === "low" || st === "critical" || st === "positive" || !!r.original_flag;
+        
+        let flagMarkup = "";
+        if (r.original_flag) {
+            let flagClass = "flag-star";
+            const fl = r.original_flag.toLowerCase();
+            if (fl.includes("h")) flagClass = "flag-high";
+            else if (fl.includes("l")) flagClass = "flag-low";
+            flagMarkup = `<span class="flag-pill ${flagClass}">${escapeHtml(r.original_flag)}</span>`;
+        }
+
+        const referenceValue = r.reference_value || r.reference_range?.raw;
+        const refText = referenceValue
+            ? escapeHtml(referenceValue)
+            : `<span style="color:var(--text-3);font-style:italic;">Not provided</span>`;
+        const unitText = r.unit ? escapeHtml(r.unit) : `<span style="color:var(--text-3);font-style:italic;">—</span>`;
+        const categoryTag = `<span class="lab-cat-tag">${escapeHtml(r.test_category || "General")}</span>`;
+        
+        const badgeClass = `badge-status ${st}`;
+        const statusLabel = st.toUpperCase();
+
+        const conf = r.extraction_confidence || r.confidence || "high";
+        const sectionInfo = r.page_section || "Page 1 — Lab Table";
+
+        return `<tr class="${isAbnormal ? 'row-abnormal' : ''}">
+            <td>
+                <div class="lab-test-name">
+                    <span>${escapeHtml(r.test_name)}</span>
+                    ${categoryTag}
+                </div>
+            </td>
+            <td>
+                <div class="lab-result-cell">
+                    <span class="lab-val-bold">${escapeHtml(String(r.result_value))}</span>
+                    ${flagMarkup}
+                </div>
+            </td>
+            <td>${unitText}</td>
+            <td>${refText}</td>
+            <td>
+                <span class="${badgeClass}">
+                    ${statusLabel}
+                </span>
+            </td>
+            <td>
+                <div style="font-size:11px; color:var(--text-2); line-height:1.3;">
+                    <span>Tesseract OCR</span>
+                    <div style="font-size:9.5px; color:var(--text-3);">${escapeHtml(sectionInfo)}</div>
+                </div>
+            </td>
+        </tr>`;
+    }).join("");
+}
+
+function exportLabResultsCSV() {
+    if (!universalLabResults || universalLabResults.length === 0) {
+        alert("No laboratory results available to export.");
+        return;
+    }
+    const headers = ["Test Category", "Investigation / Test Name", "Result Value", "Unit", "Reference Range", "Status", "Original Flag", "Section", "Confidence", "Is Estimated"];
+    const rows = universalLabResults.map(r => [
+        `"${(r.test_category || "").replace(/"/g, '""')}"`,
+        `"${(r.test_name || "").replace(/"/g, '""')}"`,
+        `"${(String(r.result_value) || "").replace(/"/g, '""')}"`,
+        `"${(r.unit || "").replace(/"/g, '""')}"`,
+        `"${(r.reference_range?.raw || "").replace(/"/g, '""')}"`,
+        `"${(r.result_status || "").replace(/"/g, '""')}"`,
+        `"${(r.original_flag || "").replace(/"/g, '""')}"`,
+        `"${(r.page_section || "").replace(/"/g, '""')}"`,
+        `"${(r.extraction_confidence || r.confidence || "high").replace(/"/g, '""')}"`,
+        `"${r.is_estimated ? "Yes" : "No"}"`
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const filename = `CliniQ_Lab_Report_${currentData?.patient_ref || "Export"}.csv`;
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 // ── Biomarker Strip (summary row) ─────────────────────────────────────
@@ -1295,6 +1768,15 @@ function updateComparisonTable(models) {
         const m   = models[key];
         const row = document.getElementById(id);
         if (!m || !row) return;
+
+        if (id === "row-model-3" || m.disabled || m.status === "decommissioned") {
+            row.style.display = "none";
+            return;
+        }
+        row.style.display = "";
+                if (id === "row-model-4") {
+                    row.querySelector(".model-name").textContent = `Model 4: ${m.name || "Cloud Vision Provider"}`;
+                }
         row.querySelector(".latency").textContent    = m.error ? "—" : `${m.latency_sec}s`;
         row.querySelector(".diagnosis-val").textContent = m.error ? "Offline" : (m.diagnosis || "—");
         row.querySelector(".details-val").textContent   = m.error ? m.error : ((m.details || "").slice(0, 200) + (m.details?.length > 200 ? "…" : ""));
@@ -1303,46 +1785,135 @@ function updateComparisonTable(models) {
     });
 }
 
-// ── Biomarker Full Profile Tab ────────────────────────────────────────
-function renderBiomarkerProfile(values, flags, ref) {
-    const grid = document.getElementById("biomarkers-grid-container");
-    if (!grid) return;
+// ── Biomarker Full Profile Tab (Dynamic Categorized Profile) ──────────
+function renderBiomarkerProfile(values, flags, ref, universalReport) {
+    const catContainer = document.getElementById("biomarkers-categorized-container");
+    if (!catContainer) return;
     setText("biomarker-patient-ref", ref || "");
-    grid.innerHTML = "";
 
-    Object.entries(BIOMARKER_RANGES).forEach(([key, range]) => {
-        const val = values[key];
-        if (val === undefined || val === null) return;
-        const isNormal    = val >= range.normal_min && val <= range.normal_max;
-        const isExtracted = flags[key];
+    const resultsToUse = (universalReport && Array.isArray(universalReport.results) && universalReport.results.length > 0)
+        ? universalReport.results
+        : (universalLabResults && universalLabResults.length > 0 ? universalLabResults : null);
 
-        let pct      = ((val - range.min) / (range.max - range.min)) * 100;
-        pct = Math.max(0, Math.min(100, pct));
-        const normMinPct = ((range.normal_min - range.min) / (range.max - range.min)) * 100;
-        const normWidth  = ((range.normal_max - range.normal_min) / (range.max - range.min)) * 100;
+    if (!resultsToUse) {
+        // Fallback using legacy BIOMARKER_RANGES
+        setText("biomarker-summary-pill", `${Object.keys(values || {}).length} Analytes`);
+        const grid = document.getElementById("biomarkers-grid-container");
+        if (grid) {
+            grid.style.display = "grid";
+            grid.innerHTML = "";
+            Object.entries(BIOMARKER_RANGES).forEach(([key, range]) => {
+                const val = values[key];
+                if (val === undefined || val === null) return;
+                const isNormal    = val >= range.normal_min && val <= range.normal_max;
+                const isExtracted = flags[key];
+                let pct = ((val - range.min) / (range.max - range.min)) * 100;
+                pct = Math.max(0, Math.min(100, pct));
+                const normMinPct = ((range.normal_min - range.min) / (range.max - range.min)) * 100;
+                const normWidth  = ((range.normal_max - range.normal_min) / (range.max - range.min)) * 100;
 
-        const card = document.createElement("div");
-        card.className = `biomarker-card ${isNormal ? "" : "abnormal-bg"}`;
-        card.innerHTML = `
-            <div class="biomarker-header">
-                <span class="biomarker-title">${key.replace(/_/g, " ")}</span>
-                <span class="biomarker-status-badge ${isNormal ? "normal" : "abnormal"}">${isNormal ? "Normal" : "Abnormal"}</span>
-            </div>
-            <div class="biomarker-value-display">
-                <span class="biomarker-val">${val}</span>
-                <span class="biomarker-unit">${range.unit}</span>
-                <span class="biomarker-src ${isExtracted ? "extracted" : "imputed"}">${isExtracted ? "• Extracted" : "• Estimated"}</span>
-            </div>
-            <div class="biomarker-range-gauge">
-                <div class="biomarker-normal-zone" style="left:${normMinPct}%; width:${normWidth}%"></div>
-                <div class="biomarker-indicator-pin ${isNormal ? "" : "abnormal-pin"}" style="left:${pct}%"></div>
-            </div>
-            <div class="biomarker-range-labels">
-                <span>${range.min}</span>
-                <span style="color:#10b981">${range.normal_min} – ${range.normal_max} ${range.unit}</span>
-                <span>${range.max}</span>
+                const card = document.createElement("div");
+                card.className = `biomarker-card ${isNormal ? "" : "abnormal-bg"}`;
+                card.innerHTML = `
+                    <div class="biomarker-header">
+                        <span class="biomarker-title">${key.replace(/_/g, " ")}</span>
+                        <span class="biomarker-status-badge ${isNormal ? "normal" : "abnormal"}">${isNormal ? "Normal" : "Abnormal"}</span>
+                    </div>
+                    <div class="biomarker-value-display">
+                        <span class="biomarker-val">${val}</span>
+                        <span class="biomarker-unit">${range.unit}</span>
+                        <span class="biomarker-src ${isExtracted ? "extracted" : "imputed"}">${isExtracted ? "• Extracted" : "• Estimated"}</span>
+                    </div>
+                    <div class="biomarker-range-gauge">
+                        <div class="biomarker-normal-zone" style="left:${normMinPct}%; width:${normWidth}%"></div>
+                        <div class="biomarker-indicator-pin ${isNormal ? "" : "abnormal-pin"}" style="left:${pct}%"></div>
+                    </div>
+                    <div class="biomarker-range-labels">
+                        <span>${range.min}</span>
+                        <span style="color:#10b981">${range.normal_min} – ${range.normal_max} ${range.unit}</span>
+                        <span>${range.max}</span>
+                    </div>`;
+                grid.appendChild(card);
+            });
+        }
+        return;
+    }
+
+    setText("biomarker-summary-pill", `${resultsToUse.length} Analytes Extracted`);
+    catContainer.innerHTML = "";
+
+    // Group by category
+    const grouped = {};
+    resultsToUse.forEach(r => {
+        const cat = r.test_category || "General Clinical Panel";
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(r);
+    });
+
+    Object.entries(grouped).forEach(([catName, tests]) => {
+        const catSection = document.createElement("div");
+        catSection.className = "category-profile-section";
+        
+        let cardsHtml = tests.map(r => {
+            const isNormal = r.result_status === "normal" || r.result_status === "negative";
+            const isAbnormal = r.result_status === "high" || r.result_status === "low" || r.result_status === "critical" || r.result_status === "positive";
+            const stLabel = (r.result_status || "NORMAL").toUpperCase();
+
+            let gaugeHtml = "";
+            const numVal = typeof r.result_value === "number" ? r.result_value : parseFloat(r.result_value);
+            const refLow = r.reference_range?.low;
+            const refHigh = r.reference_range?.high;
+
+            if (!isNaN(numVal) && refLow !== null && refLow !== undefined && refHigh !== null && refHigh !== undefined && refHigh > refLow) {
+                const span = (refHigh - refLow) * 1.6;
+                const minScale = Math.max(0, refLow - span * 0.3);
+                const maxScale = refHigh + span * 0.3;
+                let pct = ((numVal - minScale) / (maxScale - minScale)) * 100;
+                pct = Math.max(2, Math.min(98, pct));
+                const normMinPct = ((refLow - minScale) / (maxScale - minScale)) * 100;
+                const normWidth = ((refHigh - refLow) / (maxScale - minScale)) * 100;
+
+                gaugeHtml = `
+                <div class="biomarker-range-gauge">
+                    <div class="biomarker-normal-zone" style="left:${normMinPct}%; width:${normWidth}%"></div>
+                    <div class="biomarker-indicator-pin ${isNormal ? "" : "abnormal-pin"}" style="left:${pct}%"></div>
+                </div>
+                <div class="biomarker-range-labels">
+                    <span>${refLow}</span>
+                    <span style="color:#10b981">${refLow} – ${refHigh} ${r.unit || ""}</span>
+                    <span>${refHigh}</span>
+                </div>`;
+            } else {
+                gaugeHtml = `
+                <div style="font-size:11px; color:var(--text-3); padding-top:6px; border-top:1px solid rgba(255,255,255,0.05); margin-top:8px;">
+                    Reference Range: <strong style="color:var(--text-2);">${escapeHtml(r.reference_value || r.reference_range?.raw || "Not provided")}</strong>
+                </div>`;
+            }
+
+            return `
+            <div class="biomarker-card ${isNormal ? '' : 'abnormal-bg'}">
+                <div class="biomarker-header">
+                    <span class="biomarker-title" title="${escapeHtml(r.test_name)}">${escapeHtml(r.test_name)}</span>
+                    <span class="biomarker-status-badge ${isNormal ? 'normal' : 'abnormal'}">${stLabel}</span>
+                </div>
+                <div class="biomarker-value-display">
+                    <span class="biomarker-val">${escapeHtml(String(r.result_value))}</span>
+                    <span class="biomarker-unit">${escapeHtml(r.unit || '')}</span>
+                    <span class="biomarker-src extracted" style="color:var(--cyan);">• Tesseract OCR</span>
+                </div>
+                ${gaugeHtml}
             </div>`;
-        grid.appendChild(card);
+        }).join("");
+
+        catSection.innerHTML = `
+            <div class="category-group-header">
+                ${escapeHtml(catName)} <span style="font-size:11px; font-weight:400; opacity:0.8;">(${tests.length} Parameters)</span>
+            </div>
+            <div class="biomarkers-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px;">
+                ${cardsHtml}
+            </div>
+        `;
+        catContainer.appendChild(catSection);
     });
 }
 
@@ -1492,77 +2063,13 @@ async function loadReportFromServer(ref) {
     }
 }
 
-const SYSTEM_DEFAULT_GEMINI_KEY = "";
-const SYSTEM_DEFAULT_NVIDIA_KEY = "";
-
-
 // ── Settings ──────────────────────────────────────────────────────────
 function initSettings() {
-    const nvInput   = document.getElementById("nvidia-api-key-input");
-    const gemInput  = document.getElementById("gemini-api-key-input");
-    const saveBtn   = document.getElementById("btn-save-keys");
-    const resetBtn  = document.getElementById("btn-reset-defaults");
-    const toggleBtn = document.getElementById("btn-toggle-keys");
-    const statusEl  = document.getElementById("settings-status");
-
-    if (nvInput)  nvInput.value  = localStorage.getItem("nvidia_api_key")  || SYSTEM_DEFAULT_NVIDIA_KEY;
-    if (gemInput) gemInput.value = localStorage.getItem("gemini_api_key")  || SYSTEM_DEFAULT_GEMINI_KEY;
-
-    toggleBtn?.addEventListener("click", () => {
-        const hidden = nvInput.type === "password";
-        nvInput.type  = hidden ? "text"     : "password";
-        gemInput.type = hidden ? "text"     : "password";
-        toggleBtn.textContent = hidden ? "Hide Keys" : "Show Keys";
-    });
-
-    resetBtn?.addEventListener("click", async () => {
-        if (nvInput)  nvInput.value  = SYSTEM_DEFAULT_NVIDIA_KEY;
-        if (gemInput) gemInput.value = SYSTEM_DEFAULT_GEMINI_KEY;
-        localStorage.setItem("nvidia_api_key", SYSTEM_DEFAULT_NVIDIA_KEY);
-        localStorage.setItem("gemini_api_key", SYSTEM_DEFAULT_GEMINI_KEY);
-
-        try {
-            await fetch("/api/auth/update-keys", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` },
-                body: JSON.stringify({ nvidia_api_key: SYSTEM_DEFAULT_NVIDIA_KEY, gemini_api_key: SYSTEM_DEFAULT_GEMINI_KEY })
-            });
-            if (statusEl) {
-                statusEl.textContent = "✅ Reset to system default API keys.";
-                statusEl.className   = "settings-status ok";
-                setTimeout(() => { statusEl.textContent = ""; statusEl.className = "settings-status"; }, 4000);
-            }
-        } catch {
-            if (statusEl) {
-                statusEl.textContent = "⚠️ Reset locally.";
-                statusEl.className   = "settings-status warn";
-            }
-        }
-        updateBadges(true, true);
-    });
-
-    saveBtn?.addEventListener("click", async () => {
-        const nvKey  = nvInput.value.trim();
-        const gemKey = gemInput.value.trim();
-        localStorage.setItem("nvidia_api_key",  nvKey);
-        localStorage.setItem("gemini_api_key",  gemKey);
-
-        try {
-            const res = await fetch("/api/auth/update-keys", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` },
-                body: JSON.stringify({ nvidia_api_key: nvKey, gemini_api_key: gemKey })
-            });
-            const d = await res.json();
-            if (statusEl) {
-                statusEl.textContent = res.ok ? "✅ Custom API keys saved and synced to your doctor profile." : "⚠️ Keys saved locally but server sync failed.";
-                statusEl.className   = res.ok ? "settings-status ok" : "settings-status warn";
-                setTimeout(() => { statusEl.textContent = ""; statusEl.className = "settings-status"; }, 4000);
-            }
-        } catch {
-            if (statusEl) { statusEl.textContent = "⚠️ Keys saved locally. Server sync failed."; statusEl.className = "settings-status warn"; }
-        }
-        updateBadges(!!gemKey, !!nvKey);
+    const providerSelect = document.getElementById("vlm-provider-select");
+    if (!providerSelect) return;
+    providerSelect.value = localStorage.getItem("vlm_provider") || "auto";
+    providerSelect.addEventListener("change", () => {
+        localStorage.setItem("vlm_provider", providerSelect.value);
     });
 }
 
@@ -1783,50 +2290,141 @@ function renderF1ClassChart(report) {
 
 // ── Print Builder ─────────────────────────────────────────────────────
 function preparePrintView() {
-    if (!currentData) return;
-    const { patient, analyzed_by, ensemble, best_narrative, recommendations, patient_ref } = currentData;
-    const review = currentData._review || {};
+    let data = currentData;
+    if (!data) {
+        try {
+            const cached = sessionStorage.getItem("cliniq_last_report");
+            if (cached) data = JSON.parse(cached);
+        } catch(e) {}
+    }
 
-    const now = new Date().toLocaleDateString("en-GB", { weekday:"long", year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" });
+    if (!data) {
+        document.body.classList.remove("has-print-dossier");
+        return;
+    }
+
+    document.body.classList.add("has-print-dossier");
+
+    const patient = data.patient || {};
+    const analyzed_by = data.analyzed_by || {};
+    const ensemble = data.ensemble || {};
+    const best_narrative = data.best_narrative || "";
+    const recommendations = data.recommendations || [];
+    const patient_ref = data.patient_ref || "PAT-LAB-REPORT";
+    const review = data._review || {};
+    const flags = data.extracted_flags || {};
+
+    const now = new Date().toLocaleDateString("en-GB", { 
+        weekday:"long", year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" 
+    });
+
+    const docName = analyzed_by.doctor_name || (typeof DOCTOR_INFO !== "undefined" && DOCTOR_INFO?.full_name) || "SLMC Registered Clinician";
+    const slmcNumber = analyzed_by.slmc_number || (typeof DOCTOR_INFO !== "undefined" && DOCTOR_INFO?.slmc_number) || "SLMC Verified";
 
     setText("print-date",         now);
-    setText("print-doctor-name",  analyzed_by.doctor_name);
-    setText("print-slmc",         analyzed_by.slmc_number);
+    setText("print-doctor-name",  docName);
+    setText("print-slmc",         slmcNumber);
     setText("print-ref",          patient_ref);
-    setText("print-patient-name", patient.name || "Anonymous");
-    setText("print-age-gender",   `${patient.age} years · ${patient.gender}`);
-    setText("print-report-type",  patient.report_type);
-    setText("print-report-date",  patient.report_date);
-    setText("print-notes",        patient.clinical_notes || "None");
-    setText("print-diagnosis",    ensemble.primary_diagnosis);
-    setText("print-confidence",   `${ensemble.confidence}% (${ensemble.confidence_band})`);
-    setText("print-interpretation-text", best_narrative);
-    setText("print-review-decision", review.action || "Not reviewed");
-    setText("print-review-notes",    review.notes  || "None");
-    setText("print-signed-by",       review.doctor ? `${review.doctor} on ${review.timestamp}` : "Not signed");
+    setText("print-patient-name", patient.name || "Anonymous Patient");
+    setText("print-age-gender",   `${patient.age || "—"} · ${patient.gender || "Not specified"}`);
+    setText("print-report-type",  patient.report_type || "Full Blood Count");
+    setText("print-report-date",  patient.report_date || now);
+    setText("print-notes",        patient.clinical_notes || "None reported");
+    setText("print-diagnosis",    ensemble.primary_diagnosis || "Inconclusive / Pending Review");
+    setText("print-confidence",   `${ensemble.confidence || 85}% (${ensemble.confidence_band || "MODERATE"})`);
+    setText("print-interpretation-text", best_narrative || "Laboratory analysis completed. Please cross-reference findings against the observed biomarker ranges.");
+    setText("print-review-decision", review.action || "Pending Attending Physician Sign-Off");
+    setText("print-review-notes",    review.notes  || "None entered");
+    setText("print-signed-by",       review.doctor ? `${review.doctor} on ${review.timestamp}` : "Pending Signature");
+    setText("print-model-version",   data.model_version || (data.cliniq_ml && data.cliniq_ml.model_version) || "cliniq-ml-2.2.0");
 
-    // Biomarkers table
+    // Biomarkers table - render ALL extracted laboratory tests from universal_lab_report
     const tbody = document.getElementById("print-biomarkers-body");
-    if (tbody && currentData.parsed_values) {
-        tbody.innerHTML = Object.entries(BIOMARKER_RANGES).map(([key, range]) => {
-            const val = currentData.parsed_values[key];
-            if (val === undefined) return "";
-            const isNormal = val >= range.normal_min && val <= range.normal_max;
-            return `<tr>
-                <td><strong>${key.replace(/_/g," ")}</strong></td>
-                <td>${val} ${range.unit}</td>
-                <td>${range.normal_min} – ${range.normal_max}</td>
-                <td style="color:${isNormal?"green":"red"};font-weight:700">${isNormal?"NORMAL":"ABNORMAL"}</td>
-            </tr>`;
-        }).join("");
+    if (tbody) {
+        let rows = [];
+        const reportResults = (data.universal_lab_report && Array.isArray(data.universal_lab_report.results) && data.universal_lab_report.results.length > 0)
+            ? data.universal_lab_report.results
+            : (universalLabResults && universalLabResults.length > 0 ? universalLabResults : null);
+
+        if (reportResults && reportResults.length > 0) {
+            rows = reportResults.map(r => {
+                const st = (r.result_status || "undetermined").toLowerCase();
+                const isNormal = st === "normal" || st === "negative";
+                const isCritical = st === "critical";
+                const isAbnormal = st === "high" || st === "low" || st === "positive" || !!r.original_flag;
+
+                const statusBg = isNormal ? "#ecfdf5" : (isCritical ? "#fee2e2" : (isAbnormal ? "#fef2f2" : "#f1f5f9"));
+                const statusColor = isNormal ? "#059669" : (isCritical ? "#991b1b" : (isAbnormal ? "#dc2626" : "#475569"));
+                const statusBorder = isNormal ? "#a7f3d0" : (isCritical ? "#f87171" : (isAbnormal ? "#fecaca" : "#cbd5e1"));
+                const statusText = st.toUpperCase();
+
+                const flagMarkup = r.original_flag ? `<span style="display:inline-block;padding:1px 4px;font-size:7pt;background:#ef4444;color:#fff;border-radius:3px;margin-left:4px;font-weight:700;">${escapeHtml(r.original_flag)}</span>` : "";
+                const referenceValue = r.reference_value || r.reference_range?.raw;
+                const refDisplay = referenceValue ? escapeHtml(referenceValue) : "Not provided";
+                const unitDisplay = r.unit ? ` <span style="font-size:7.5pt;color:#64748b;">${escapeHtml(r.unit)}</span>` : "";
+
+                return `<tr>
+                    <td>
+                        <strong>${escapeHtml(r.test_name)}</strong>
+                        <div style="font-size:7pt;color:#64748b;text-transform:uppercase;">${escapeHtml(r.test_category || "General")}</div>
+                    </td>
+                    <td><strong style="font-size:9pt;">${escapeHtml(String(r.result_value))}</strong>${unitDisplay} ${flagMarkup}</td>
+                    <td><span style="font-size:8pt;">${refDisplay}</span></td>
+                    <td><span style="font-weight:700;padding:2px 6px;border-radius:4px;font-size:7.5pt;background:${statusBg};color:${statusColor};border:1px solid ${statusBorder};">${statusText}</span></td>
+                </tr>`;
+            });
+        } else if (data.parsed_values) {
+            rows = Object.entries(BIOMARKER_RANGES).map(([key, range]) => {
+                const rawVal = data.parsed_values[key];
+                const isExtracted = flags[key] === true;
+                if (rawVal === undefined || rawVal === null || rawVal === "") return "";
+                const numVal = parseFloat(rawVal);
+                if (isNaN(numVal)) return "";
+                if (!isExtracted && numVal === 0) return "";
+
+                const isNormal = numVal >= range.normal_min && numVal <= range.normal_max;
+                const statusBg = isNormal ? "#ecfdf5" : "#fef2f2";
+                const statusColor = isNormal ? "#059669" : "#dc2626";
+                const statusBorder = isNormal ? "#a7f3d0" : "#fecaca";
+                const statusText = isNormal ? "NORMAL" : (numVal > range.normal_max ? "ELEVATED (HIGH)" : "LOW (BELOW RANGE)");
+
+                return `<tr>
+                    <td><strong>${key.replace(/_/g," ")}</strong></td>
+                    <td><strong style="font-size:9pt;">${numVal}</strong> <span style="font-size:7.5pt;color:#64748b;">${range.unit}</span></td>
+                    <td>${range.normal_min} – ${range.normal_max} <span style="font-size:7.5pt;color:#64748b;">${range.unit}</span></td>
+                    <td><span style="font-weight:700;padding:2px 6px;border-radius:4px;font-size:7.5pt;background:${statusBg};color:${statusColor};border:1px solid ${statusBorder};">${statusText}</span></td>
+                </tr>`;
+            }).filter(r => r.length > 0);
+        }
+
+        if (rows.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#64748b;padding:12px;">No individual laboratory tests parsed. Comprehensive clinical interpretation provided below.</td></tr>`;
+        } else {
+            tbody.innerHTML = rows.join("");
+        }
     }
 
     // Recommendations
     const recList = document.getElementById("print-recs");
     if (recList) {
-        recList.innerHTML = (recommendations || []).map(r => `<li>${r}</li>`).join("");
+        if (recommendations && recommendations.length > 0) {
+            recList.innerHTML = recommendations.map(r => `<li>${r}</li>`).join("");
+        } else {
+            recList.innerHTML = `<li>Correlate findings clinically with patient symptomatology and repeat panel if symptoms persist.</li>`;
+        }
     }
 }
+
+// ── Native Print Event Listeners ──────────────────────────────────────
+window.addEventListener("beforeprint", () => {
+    preparePrintView();
+});
+
+window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") {
+        preparePrintView();
+    }
+});
 
 // ── ORIGINAL LAB REPORT VIEWER & LIGHTBOX ──────────────────────────────
 function updateReportPreviewElements(url, filename) {

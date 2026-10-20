@@ -1,0 +1,600 @@
+{
+ "version": "cliniq-ml-2.2.0",
+ "n_total": 30000,
+ "baseline_logreg_auroc_test": {
+  "anemia": 0.9331254006979135,
+  "ckd": 0.9458319845513301,
+  "diabetes": 0.97135976795628,
+  "hypercholesterolemia": 0.8721520273734619,
+  "hypothyroidism": 0.9280012771392081,
+  "hyperthyroidism": 0.8745577075282833,
+  "infection": 0.8579942832816395
+ },
+ "test": {
+  "anemia": {
+   "prevalence": 0.1568,
+   "assessable_rate": 1.0,
+   "auroc": 0.9413510027666983,
+   "auprc": 0.8286962843482031,
+   "brier": 0.05140254430578405,
+   "ece": 0.00822786189351494,
+   "pos_coverage": 0.9591836734693877,
+   "neg_coverage": 0.9048070841239721,
+   "sensitivity": 0.8435374149659864,
+   "uncertain_rate": 0.24746666666666667,
+   "selective_accuracy": 0.8848334514528703,
+   "positives_called_negative": 0.04081632653061224
+  },
+  "ckd": {
+   "prevalence": 0.05386666666666667,
+   "assessable_rate": 0.864,
+   "auroc": 0.9670500305651845,
+   "auprc": 0.8930790469295053,
+   "brier": 0.011028304282183406,
+   "ece": 0.007648838257285245,
+   "pos_coverage": 0.9572192513368984,
+   "neg_coverage": 0.9272846380609236,
+   "sensitivity": 0.9411764705882353,
+   "uncertain_rate": 0.17098765432098764,
+   "selective_accuracy": 0.9143708116157856,
+   "positives_called_negative": 0.0427807486631016
+  },
+  "diabetes": {
+   "prevalence": 0.1128,
+   "assessable_rate": 0.9,
+   "auroc": 0.970001550182308,
+   "auprc": 0.879050937515209,
+   "brier": 0.02607946369586617,
+   "ece": 0.012346474360477724,
+   "pos_coverage": 0.9737470167064439,
+   "neg_coverage": 0.9218538565629228,
+   "sensitivity": 0.9284009546539379,
+   "uncertain_rate": 0.16266666666666665,
+   "selective_accuracy": 0.9143665958952583,
+   "positives_called_negative": 0.026252983293556086
+  },
+  "hypercholesterolemia": {
+   "prevalence": 0.1912,
+   "assessable_rate": 0.672,
+   "auroc": 0.9193787696945233,
+   "auprc": 0.7882497714961001,
+   "brier": 0.08719411741306397,
+   "ece": 0.014915863464621476,
+   "pos_coverage": 0.9594356261022927,
+   "neg_coverage": 0.9365079365079365,
+   "sensitivity": 0.6843033509700176,
+   "uncertain_rate": 0.32936507936507936,
+   "selective_accuracy": 0.91301775147929,
+   "positives_called_negative": 0.04056437389770723
+  },
+  "hypothyroidism": {
+   "prevalence": 0.072,
+   "assessable_rate": 0.4536,
+   "auroc": 0.9899021739792533,
+   "auprc": 0.9298136368642314,
+   "brier": 0.015322554675756354,
+   "ece": 0.008212631758447346,
+   "pos_coverage": 0.9864864864864865,
+   "neg_coverage": 0.9797160243407708,
+   "sensitivity": 0.9774774774774775,
+   "uncertain_rate": 0.0376249265138154,
+   "selective_accuracy": 0.9798411728772144,
+   "positives_called_negative": 0.013513513513513514
+  },
+  "hyperthyroidism": {
+   "prevalence": 0.025066666666666668,
+   "assessable_rate": 0.4536,
+   "auroc": 0.9662203691091213,
+   "auprc": 0.9154036917154743,
+   "brier": 0.005824107211083174,
+   "ece": 0.0027274279465087457,
+   "pos_coverage": 0.9594594594594594,
+   "neg_coverage": 0.9194837123540258,
+   "sensitivity": 0.9459459459459459,
+   "uncertain_rate": 0.4368018812463257,
+   "selective_accuracy": 0.860125260960334,
+   "positives_called_negative": 0.04054054054054054
+  },
+  "infection": {
+   "prevalence": 0.0928,
+   "assessable_rate": 1.0,
+   "auroc": 0.8978035232824505,
+   "auprc": 0.757509466268173,
+   "brier": 0.034566136947297384,
+   "ece": 0.013092083790208086,
+   "pos_coverage": 0.9597701149425287,
+   "neg_coverage": 0.9365079365079365,
+   "sensitivity": 0.7672413793103449,
+   "uncertain_rate": 0.6709333333333334,
+   "selective_accuracy": 0.813614262560778,
+   "positives_called_negative": 0.040229885057471264
+  }
+ },
+ "external": {
+  "anemia": {
+   "prevalence": 0.1908,
+   "assessable_rate": 1.0,
+   "auroc": 0.9113132674453429,
+   "auprc": 0.7507992761636116,
+   "brier": 0.08753361108884139,
+   "ece": 0.05515115124400716,
+   "pos_coverage": 0.9580712788259959,
+   "neg_coverage": 0.7876915472071181,
+   "sensitivity": 0.8794549266247379,
+   "uncertain_rate": 0.2376,
+   "selective_accuracy": 0.7641657922350472,
+   "positives_called_negative": 0.041928721174004195
+  },
+  "ckd": {
+   "prevalence": 0.0948,
+   "assessable_rate": 0.6336,
+   "auroc": 0.976067791195175,
+   "auprc": 0.9007426256182531,
+   "brier": 0.03407325259335101,
+   "ece": 0.045521512199702435,
+   "pos_coverage": 0.9785276073619632,
+   "neg_coverage": 0.7438423645320197,
+   "sensitivity": 0.9754601226993865,
+   "uncertain_rate": 0.1903409090909091,
+   "selective_accuracy": 0.7134502923976608,
+   "positives_called_negative": 0.02147239263803681
+  },
+  "diabetes": {
+   "prevalence": 0.1606,
+   "assessable_rate": 0.719,
+   "auroc": 0.9691341681889986,
+   "auprc": 0.9018518059192293,
+   "brier": 0.04117024570040327,
+   "ece": 0.019601523935171387,
+   "pos_coverage": 0.9815864022662889,
+   "neg_coverage": 0.86846659743856,
+   "sensitivity": 0.9362606232294618,
+   "uncertain_rate": 0.1788595271210014,
+   "selective_accuracy": 0.866869918699187,
+   "positives_called_negative": 0.018413597733711047
+  },
+  "hypercholesterolemia": {
+   "prevalence": 0.2294,
+   "assessable_rate": 0.5116,
+   "auroc": 0.8729346378784526,
+   "auprc": 0.7312281024307054,
+   "brier": 0.12848995023772955,
+   "ece": 0.06032060818636982,
+   "pos_coverage": 0.9525101763907734,
+   "neg_coverage": 0.85667215815486,
+   "sensitivity": 0.7069199457259159,
+   "uncertain_rate": 0.3315089913995309,
+   "selective_accuracy": 0.8269005847953217,
+   "positives_called_negative": 0.04748982360922659
+  },
+  "hypothyroidism": {
+   "prevalence": 0.0848,
+   "assessable_rate": 0.3542,
+   "auroc": 0.9701449759965607,
+   "auprc": 0.819005577990052,
+   "brier": 0.04922032673678198,
+   "ece": 0.03547838541578415,
+   "pos_coverage": 0.9893238434163701,
+   "neg_coverage": 0.8818791946308725,
+   "sensitivity": 0.9822064056939501,
+   "uncertain_rate": 0.07001693958215698,
+   "selective_accuracy": 0.891317547055252,
+   "positives_called_negative": 0.010676156583629894
+  },
+  "hyperthyroidism": {
+   "prevalence": 0.0228,
+   "assessable_rate": 0.3542,
+   "auroc": 0.9675838645001047,
+   "auprc": 0.9214847272090044,
+   "brier": 0.0055624013766646385,
+   "ece": 0.004970483502393083,
+   "pos_coverage": 0.9746835443037974,
+   "neg_coverage": 0.9326241134751773,
+   "sensitivity": 0.9367088607594937,
+   "uncertain_rate": 0.4025974025974026,
+   "selective_accuracy": 0.8903591682419659,
+   "positives_called_negative": 0.02531645569620253
+  },
+  "infection": {
+   "prevalence": 0.0878,
+   "assessable_rate": 1.0,
+   "auroc": 0.8684329206868773,
+   "auprc": 0.6478790542630989,
+   "brier": 0.044695412519429455,
+   "ece": 0.016533441600467665,
+   "pos_coverage": 0.9726651480637813,
+   "neg_coverage": 0.8943214207410656,
+   "sensitivity": 0.7334851936218679,
+   "uncertain_rate": 0.6732,
+   "selective_accuracy": 0.6976744186046512,
+   "positives_called_negative": 0.02733485193621868
+  }
+ },
+ "external_after_site_recalibration": {
+  "anemia": {
+   "prevalence": 0.1936,
+   "assessable_rate": 1.0,
+   "auroc": 0.9082489874393285,
+   "auprc": 0.737222194006261,
+   "brier": 0.09198781867085283,
+   "ece": 0.056472050856736775,
+   "pos_coverage": 0.9586776859504132,
+   "neg_coverage": 0.9057539682539683,
+   "sensitivity": 0.7458677685950413,
+   "uncertain_rate": 0.3592,
+   "selective_accuracy": 0.8689138576779026,
+   "positives_called_negative": 0.04132231404958678
+  },
+  "ckd": {
+   "prevalence": 0.0868,
+   "assessable_rate": 0.62,
+   "auroc": 0.971240643023684,
+   "auprc": 0.8759389258252004,
+   "brier": 0.034439003945785265,
+   "ece": 0.04491557712328747,
+   "pos_coverage": 0.9517241379310345,
+   "neg_coverage": 0.9217081850533808,
+   "sensitivity": 0.9517241379310345,
+   "uncertain_rate": 0.0025806451612903226,
+   "selective_accuracy": 0.9243208279430789,
+   "positives_called_negative": 0.04827586206896552
+  },
+  "diabetes": {
+   "prevalence": 0.1572,
+   "assessable_rate": 0.722,
+   "auroc": 0.9719344213804046,
+   "auprc": 0.9069728873983273,
+   "brier": 0.03686571142498067,
+   "ece": 0.011967915664543645,
+   "pos_coverage": 0.9824561403508771,
+   "neg_coverage": 0.911825017088175,
+   "sensitivity": 0.935672514619883,
+   "uncertain_rate": 0.21385041551246536,
+   "selective_accuracy": 0.904862579281184,
+   "positives_called_negative": 0.017543859649122806
+  },
+  "hypercholesterolemia": {
+   "prevalence": 0.2232,
+   "assessable_rate": 0.5204,
+   "auroc": 0.8473790134675427,
+   "auprc": 0.6767973080651634,
+   "brier": 0.14183362609283842,
+   "ece": 0.07723471315528518,
+   "pos_coverage": 0.9402173913043478,
+   "neg_coverage": 0.8842443729903537,
+   "sensitivity": 0.6141304347826086,
+   "uncertain_rate": 0.3843197540353574,
+   "selective_accuracy": 0.8377028714107366,
+   "positives_called_negative": 0.059782608695652176
+  },
+  "hypothyroidism": {
+   "prevalence": 0.0848,
+   "assessable_rate": 0.3472,
+   "auroc": 0.9797445993822227,
+   "auprc": 0.8396465035662812,
+   "brier": 0.045180047396381234,
+   "ece": 0.03137758858283985,
+   "pos_coverage": 0.9784172661870504,
+   "neg_coverage": 0.9423868312757202,
+   "sensitivity": 0.9568345323741008,
+   "uncertain_rate": 0.018433179723502304,
+   "selective_accuracy": 0.9471830985915493,
+   "positives_called_negative": 0.02158273381294964
+  },
+  "hyperthyroidism": {
+   "prevalence": 0.0276,
+   "assessable_rate": 0.3472,
+   "auroc": 0.9812228922035333,
+   "auprc": 0.9267778970216285,
+   "brier": 0.005804953631013632,
+   "ece": 0.0042782070835159615,
+   "pos_coverage": 1.0,
+   "neg_coverage": 0.8929440389294404,
+   "sensitivity": 0.9565217391304348,
+   "uncertain_rate": 0.7188940092165899,
+   "selective_accuracy": 0.639344262295082,
+   "positives_called_negative": 0.0
+  },
+  "infection": {
+   "prevalence": 0.0912,
+   "assessable_rate": 1.0,
+   "auroc": 0.8700165631949592,
+   "auprc": 0.6473406939033752,
+   "brier": 0.046555198017271,
+   "ece": 0.018030706966467035,
+   "pos_coverage": 0.9780701754385965,
+   "neg_coverage": 0.917693661971831,
+   "sensitivity": 0.7149122807017544,
+   "uncertain_rate": 0.7076,
+   "selective_accuracy": 0.7373461012311902,
+   "positives_called_negative": 0.021929824561403508
+  },
+  "_recalibration_report": {
+   "anemia": {
+    "updated": true,
+    "q_pos": 0.9548192769289017,
+    "q_neg": 0.3333333432674408,
+    "assessable_cases": 2500,
+    "positives": 470,
+    "calibrator_refit": false
+   },
+   "ckd": {
+    "updated": true,
+    "q_pos": 0.8333333283662796,
+    "q_neg": 0.1111111119389534,
+    "assessable_cases": 1618,
+    "positives": 181,
+    "calibrator_refit": false
+   },
+   "diabetes": {
+    "updated": true,
+    "q_pos": 0.9790356401354074,
+    "q_neg": 0.08771929889917374,
+    "assessable_cases": 1790,
+    "positives": 364,
+    "calibrator_refit": false
+   },
+   "hypercholesterolemia": {
+    "updated": true,
+    "q_pos": 0.9244935512542725,
+    "q_neg": 0.6333333253860474,
+    "assessable_cases": 1257,
+    "positives": 369,
+    "calibrator_refit": false
+   },
+   "hypothyroidism": {
+    "updated": true,
+    "q_pos": 0.45554193474075655,
+    "q_neg": 0.02985074557363987,
+    "assessable_cases": 903,
+    "positives": 142,
+    "calibrator_refit": false
+   },
+   "hyperthyroidism": {
+    "updated": true,
+    "q_pos": 0.9994592666625977,
+    "q_neg": 0.00515394750982523,
+    "assessable_cases": 903,
+    "positives": 33,
+    "calibrator_refit": false
+   },
+   "infection": {
+    "updated": true,
+    "q_pos": 0.9764837622642517,
+    "q_neg": 0.1515151560306549,
+    "assessable_cases": 2500,
+    "positives": 211,
+    "calibrator_refit": false
+   }
+  }
+ },
+ "external_before_recalibration_same_rows": {
+  "anemia": {
+   "prevalence": 0.1936,
+   "assessable_rate": 1.0,
+   "auroc": 0.9082489874393285,
+   "auprc": 0.737222194006261,
+   "brier": 0.09198781867085283,
+   "ece": 0.056472050856736775,
+   "pos_coverage": 0.9586776859504132,
+   "neg_coverage": 0.7807539682539683,
+   "sensitivity": 0.871900826446281,
+   "uncertain_rate": 0.234,
+   "selective_accuracy": 0.7587467362924282,
+   "positives_called_negative": 0.04132231404958678
+  },
+  "ckd": {
+   "prevalence": 0.0868,
+   "assessable_rate": 0.62,
+   "auroc": 0.971240643023684,
+   "auprc": 0.8759389258252004,
+   "brier": 0.034439003945785265,
+   "ece": 0.04491557712328747,
+   "pos_coverage": 0.9724137931034482,
+   "neg_coverage": 0.7501779359430605,
+   "sensitivity": 0.9724137931034482,
+   "uncertain_rate": 0.1935483870967742,
+   "selective_accuracy": 0.716,
+   "positives_called_negative": 0.027586206896551724
+  },
+  "diabetes": {
+   "prevalence": 0.1572,
+   "assessable_rate": 0.722,
+   "auroc": 0.9719344213804046,
+   "auprc": 0.9069728873983273,
+   "brier": 0.03686571142498067,
+   "ece": 0.011967915664543645,
+   "pos_coverage": 0.9824561403508771,
+   "neg_coverage": 0.8660287081339713,
+   "sensitivity": 0.9415204678362573,
+   "uncertain_rate": 0.17562326869806094,
+   "selective_accuracy": 0.864247311827957,
+   "positives_called_negative": 0.017543859649122806
+  },
+  "hypercholesterolemia": {
+   "prevalence": 0.2232,
+   "assessable_rate": 0.5204,
+   "auroc": 0.8473790134675427,
+   "auprc": 0.6767973080651634,
+   "brier": 0.14183362609283842,
+   "ece": 0.07723471315528518,
+   "pos_coverage": 0.9402173913043478,
+   "neg_coverage": 0.8413719185423365,
+   "sensitivity": 0.6603260869565217,
+   "uncertain_rate": 0.34050730207532665,
+   "selective_accuracy": 0.8018648018648019,
+   "positives_called_negative": 0.059782608695652176
+  },
+  "hypothyroidism": {
+   "prevalence": 0.0848,
+   "assessable_rate": 0.3472,
+   "auroc": 0.9797445993822227,
+   "auprc": 0.8396465035662812,
+   "brier": 0.045180047396381234,
+   "ece": 0.03137758858283985,
+   "pos_coverage": 1.0,
+   "neg_coverage": 0.897119341563786,
+   "sensitivity": 0.9928057553956835,
+   "uncertain_rate": 0.06336405529953917,
+   "selective_accuracy": 0.9077490774907749,
+   "positives_called_negative": 0.0
+  },
+  "hyperthyroidism": {
+   "prevalence": 0.0276,
+   "assessable_rate": 0.3472,
+   "auroc": 0.9812228922035333,
+   "auprc": 0.9267778970216285,
+   "brier": 0.005804953631013632,
+   "ece": 0.0042782070835159615,
+   "pos_coverage": 1.0,
+   "neg_coverage": 0.9209245742092458,
+   "sensitivity": 0.9565217391304348,
+   "uncertain_rate": 0.4032258064516129,
+   "selective_accuracy": 0.8745173745173745,
+   "positives_called_negative": 0.0
+  },
+  "infection": {
+   "prevalence": 0.0912,
+   "assessable_rate": 1.0,
+   "auroc": 0.8700165631949592,
+   "auprc": 0.6473406939033752,
+   "brier": 0.046555198017271,
+   "ece": 0.018030706966467035,
+   "pos_coverage": 0.9780701754385965,
+   "neg_coverage": 0.8921654929577465,
+   "sensitivity": 0.7412280701754386,
+   "uncertain_rate": 0.682,
+   "selective_accuracy": 0.6855345911949685,
+   "positives_called_negative": 0.021929824561403508
+  }
+ },
+ "subgroup_auroc": {
+  "female": {
+   "anemia": 0.9430141115493854,
+   "ckd": 0.9355064546339313,
+   "diabetes": 0.9725973084097381,
+   "hypercholesterolemia": 0.8841047932330827,
+   "hypothyroidism": 0.9437722133222609,
+   "hyperthyroidism": 0.9123161764705882,
+   "infection": 0.9025033608366941
+  },
+  "male": {
+   "anemia": 0.936508155042175,
+   "ckd": 0.9889136030440377,
+   "diabetes": 0.9608577567337158,
+   "hypercholesterolemia": 0.8593047438451246,
+   "hypothyroidism": 0.9255096568299643,
+   "hyperthyroidism": 0.8345420359924792,
+   "infection": 0.8938829391640636
+  },
+  "age<40": {
+   "anemia": 0.9305465502116785,
+   "ckd": 0.9486636190730422,
+   "diabetes": 0.9418218194142277,
+   "hypercholesterolemia": 0.8593245112624958,
+   "hypothyroidism": 0.8944200626959248,
+   "hyperthyroidism": 0.8816807497955674,
+   "infection": 0.8714852957683241
+  },
+  "age40-64": {
+   "anemia": 0.9439948908888789,
+   "ckd": 0.940783736257452,
+   "diabetes": 0.966592186995422,
+   "hypercholesterolemia": 0.8668437370438828,
+   "hypothyroidism": 0.9431199698917261,
+   "hyperthyroidism": 0.8817746271245231,
+   "infection": 0.9161543953747562
+  },
+  "age>=65": {
+   "anemia": 0.9463576674538708,
+   "ckd": 0.9855318650421744,
+   "diabetes": 0.9757102580785079,
+   "hypercholesterolemia": 0.8537701733721821,
+   "hypothyroidism": 0.9556918622371228,
+   "hyperthyroidism": 0.8916354556803995,
+   "infection": 0.8883572567783092
+  }
+ },
+ "missing_panel_stress": {
+  "thyroid_panel_removed/hypothyroidism": {
+   "bare_model_positives_called_negative": 0.14074074074074075,
+   "production_positives_called_negative": 0.0,
+   "production_not_assessable": 1.0
+  },
+  "thyroid_panel_removed/hyperthyroidism": {
+   "bare_model_positives_called_negative": 0.09574468085106383,
+   "production_positives_called_negative": 0.0,
+   "production_not_assessable": 1.0
+  },
+  "renal_panel_removed/ckd": {
+   "bare_model_positives_called_negative": 0.09900990099009901,
+   "production_positives_called_negative": 0.0,
+   "production_not_assessable": 1.0
+  },
+  "glycaemia_panel_removed/diabetes": {
+   "bare_model_positives_called_negative": 0.14657210401891252,
+   "production_positives_called_negative": 0.0,
+   "production_not_assessable": 1.0
+  },
+  "lipids_panel_removed/hypercholesterolemia": {
+   "bare_model_positives_called_negative": 0.07252440725244072,
+   "production_positives_called_negative": 0.0,
+   "production_not_assessable": 1.0
+  }
+ },
+ "ocr_robustness": {
+  "rows_corrupted": 205,
+  "auroc": {
+   "anemia": {
+    "clean": 0.9413510027666983,
+    "corrupted_no_gate": 0.9396296152869751,
+    "corrupted_with_gate": 0.9405041586527084
+   },
+   "ckd": {
+    "clean": 0.9579961378324979,
+    "corrupted_no_gate": 0.9546537164990456,
+    "corrupted_with_gate": 0.9546802270418698
+   },
+   "diabetes": {
+    "clean": 0.9671556809000931,
+    "corrupted_no_gate": 0.9666540185217161,
+    "corrupted_with_gate": 0.9668540439601201
+   },
+   "hypercholesterolemia": {
+    "clean": 0.8722168650654056,
+    "corrupted_no_gate": 0.8656944691609405,
+    "corrupted_with_gate": 0.8682985531997861
+   },
+   "hypothyroidism": {
+    "clean": 0.9399137931034484,
+    "corrupted_no_gate": 0.9402378671775224,
+    "corrupted_with_gate": 0.9411206896551725
+   },
+   "hyperthyroidism": {
+    "clean": 0.8844510917640487,
+    "corrupted_no_gate": 0.8816809441780343,
+    "corrupted_with_gate": 0.8848846547790865
+   },
+   "infection": {
+    "clean": 0.8978035232824505,
+    "corrupted_no_gate": 0.8956665112476097,
+    "corrupted_with_gate": 0.8957801191996595
+   }
+  },
+  "detection": {
+   "decimal_slip_x10_or_x0.1": {
+    "n": 130,
+    "caught_by_bounds": 0.6,
+    "caught_by_consistency": 0.038461538461538464,
+    "total_caught": 0.6384615384615384
+   },
+   "digit_misread_x2_or_x0.5": {
+    "n": 75,
+    "caught_by_bounds": 0.18666666666666668,
+    "caught_by_consistency": 0.37333333333333335,
+    "total_caught": 0.56
+   },
+   "false_flag_rate_on_clean_rows": 0.0005333333333333334
+  }
+ }
+}

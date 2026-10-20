@@ -140,6 +140,44 @@ CREATE POLICY "Allow anon all audit_log"
     USING (true)
     WITH CHECK (true);
 
+-- 4. Create Condition Feedback Table (Site Recalibration Ledger)
+CREATE TABLE IF NOT EXISTS public.condition_feedback (
+    id TEXT PRIMARY KEY,
+    report_id TEXT NOT NULL,
+    patient_ref TEXT NOT NULL,
+    doctor_id TEXT NOT NULL,
+    condition_name TEXT NOT NULL,
+    model_decision TEXT NOT NULL,
+    model_probability DOUBLE PRECISION,
+    physician_decision TEXT NOT NULL,
+    final_label INTEGER,
+    review_notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.condition_feedback ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Doctor isolated condition_feedback" ON public.condition_feedback;
+CREATE POLICY "Doctor isolated condition_feedback"
+    ON public.condition_feedback FOR ALL
+    TO anon, authenticated
+    USING (
+        doctor_id = COALESCE(
+            auth.uid()::text,
+            (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'),
+            (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'doctor_id')
+        )
+        OR (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role') = 'ADMIN'
+    )
+    WITH CHECK (
+        doctor_id = COALESCE(
+            auth.uid()::text,
+            (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'),
+            (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'doctor_id')
+        )
+        OR (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role') = 'ADMIN'
+    );
+
 -- Success verification notice
 SELECT 'CliniQ AI doctor-isolated tables created successfully with RLS enabled!' AS status;
 

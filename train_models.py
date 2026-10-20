@@ -1,3 +1,9 @@
+"""
+[DEPRECATED] train_models.py — Legacy single-target 8-class XGBoost model training.
+Replaced by cliniq_ml multi-label engine (cliniq_ml/train.py) with split conformal
+prediction, TreeSHAP explanation, and JSON-only artifacts.
+Kept solely for backward compatibility with legacy benchmarks.
+"""
 import os
 import json
 import time

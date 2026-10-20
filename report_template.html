@@ -392,8 +392,8 @@
                 <div class="kpi-lbl">Multi-Modal Consensus</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-num">98.50%</div>
-                <div class="kpi-lbl">ML Model Accuracy</div>
+                <div class="kpi-num">0.970</div>
+                <div class="kpi-lbl">Peak AUROC (Hard Synth)</div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-num">31+ Analytes</div>
@@ -1073,137 +1073,99 @@ H_n = SHA256( H_{n-1}   | event_type | actor_id | target_id | timestamp | detail
 <!-- ══════════════════════════ PAGE 10: MACHINE LEARNING BENCHMARKS ══════════════════════════ -->
 <h2>9. Machine Learning Benchmarks & Dataset Evaluation</h2>
 
-<p>
-    CliniQ AI incorporates a supervised machine learning benchmark pipeline (<code>train_models.py</code>) evaluated on a synthetic clinical cohort of <strong>3,000 patient records</strong> generated via physiological clinical distributions (<code>synthetic_data_generator.py</code>).
-</p>
+<div class="alert-box" style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b; padding: 12px 16px; margin-bottom: 20px; border-radius: 4px;">
+    <strong>HONEST EVALUATION DISCLOSURE:</strong> All benchmark data below is derived from a <strong>HARD SYNTHETIC COHORT</strong> (30,000 patients, 6 clinical laboratories; internal test n=3,750; unseen shifted lab n=5,000). None of these metrics represent clinical evidence; they demonstrate mathematical calibration, split-conformal coverage guarantees, and abstention behavior under simulated noise, comorbidity, and analyser shift. Real-world validation on de-identified local data is mandatory prior to clinical deployment.
+</div>
 
-<h3>Model Comparison & Performance Benchmarks</h3>
+<h3>CliniQ ML Engine v2.2 — Multi-Label Benchmark Results</h3>
+<p>Decision metrics computed strictly over assessable cases (unseen panel exclusions marked <code>NOT_ASSESSABLE</code> rather than assumed healthy):</p>
 <table>
     <thead>
         <tr>
-            <th>Algorithm</th>
-            <th>Accuracy</th>
-            <th>F1-Score (Macro)</th>
-            <th>Training Time</th>
-            <th>Inference Latency</th>
-            <th>Deployment Status</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td><strong>Logistic Regression</strong></td>
-            <td>96.17%</td>
-            <td>0.9618</td>
-            <td>0.4446 s</td>
-            <td>0.0024 ms / sample</td>
-            <td>Evaluated Baseline</td>
-        </tr>
-        <tr>
-            <td><strong>Random Forest Classifier</strong></td>
-            <td>98.33%</td>
-            <td>0.9833</td>
-            <td>0.2490 s</td>
-            <td>0.0155 ms / sample</td>
-            <td>Evaluated Ensemble</td>
-        </tr>
-        <tr>
-            <td><strong>XGBoost Classifier</strong></td>
-            <td><strong>98.50%</strong></td>
-            <td><strong>0.9850</strong></td>
-            <td><strong>0.2989 s</strong></td>
-            <td><strong>0.0066 ms / sample</strong></td>
-            <td><span class="badge badge-success">Production Model</span></td>
-        </tr>
-    </tbody>
-</table>
-
-<h3>XGBoost Per-Class Classification Report (Test Set N=600)</h3>
-<table>
-    <thead>
-        <tr>
-            <th>Disease Class</th>
-            <th>Precision</th>
-            <th>Recall</th>
-            <th>F1-Score</th>
-            <th>Support</th>
-            <th>Clinical Assessment</th>
+            <th>Target Condition</th>
+            <th>AUROC (Internal)</th>
+            <th>AUROC (Shifted Lab)</th>
+            <th>ECE (Internal)</th>
+            <th>Positive Cov (≥0.95)</th>
+            <th>Negative Cov (≥0.90)</th>
+            <th>Uncertain / Abstention</th>
         </tr>
     </thead>
     <tbody>
         <tr>
             <td><strong>Anemia</strong></td>
-            <td>98.67%</td>
-            <td>98.67%</td>
-            <td>98.67%</td>
-            <td>75</td>
-            <td>Near-perfect detection driven by Hemoglobin & red cell indices.</td>
+            <td>0.941</td>
+            <td>0.911</td>
+            <td>0.008</td>
+            <td>95.9%</td>
+            <td>90.5%</td>
+            <td>25%</td>
         </tr>
         <tr>
-            <td><strong>Chronic Kidney Disease</strong></td>
-            <td>100.0%</td>
-            <td>100.0%</td>
-            <td>100.0%</td>
-            <td>75</td>
-            <td>Perfect discrimination based on Creatinine and secondary anemia features.</td>
+            <td><strong>Chronic Kidney Disease (CKD)</strong></td>
+            <td>0.967</td>
+            <td>0.976</td>
+            <td>0.008</td>
+            <td>95.7%</td>
+            <td>92.7%</td>
+            <td>17%</td>
         </tr>
         <tr>
-            <td><strong>Diabetes</strong></td>
-            <td>100.0%</td>
-            <td>100.0%</td>
-            <td>100.0%</td>
-            <td>75</td>
-            <td>Complete separation based on Fasting Blood Sugar thresholds.</td>
-        </tr>
-        <tr>
-            <td><strong>Healthy (Normal)</strong></td>
-            <td>93.42%</td>
-            <td>94.67%</td>
-            <td>94.04%</td>
-            <td>75</td>
-            <td>Slight overlap with borderline cases; addressed by safety guardrail.</td>
+            <td><strong>Diabetes Mellitus</strong></td>
+            <td>0.970</td>
+            <td>0.969</td>
+            <td>0.012</td>
+            <td>97.4%</td>
+            <td>92.2%</td>
+            <td>16%</td>
         </tr>
         <tr>
             <td><strong>Hypercholesterolemia</strong></td>
-            <td>100.0%</td>
-            <td>100.0%</td>
-            <td>100.0%</td>
-            <td>75</td>
-            <td>Zero false positives or negatives across cholesterol boundaries.</td>
-        </tr>
-        <tr>
-            <td><strong>Hyperthyroidism</strong></td>
-            <td>98.68%</td>
-            <td>100.0%</td>
-            <td>99.34%</td>
-            <td>75</td>
-            <td>Flawless sensitivity for suppressed TSH levels.</td>
+            <td>0.919</td>
+            <td>0.873</td>
+            <td>0.015</td>
+            <td>95.9%</td>
+            <td>93.7%</td>
+            <td>33%</td>
         </tr>
         <tr>
             <td><strong>Hypothyroidism</strong></td>
-            <td>100.0%</td>
-            <td>100.0%</td>
-            <td>100.0%</td>
-            <td>75</td>
-            <td>Flawless detection of elevated TSH profiles.</td>
+            <td>0.990</td>
+            <td>0.970</td>
+            <td>0.008</td>
+            <td>98.6%</td>
+            <td>98.0%</td>
+            <td>4%</td>
         </tr>
         <tr>
-            <td><strong>Infection</strong></td>
-            <td>97.26%</td>
-            <td>94.67%</td>
-            <td>95.95%</td>
-            <td>75</td>
-            <td>High sensitivity for leukocytosis and inflammatory shifts.</td>
+            <td><strong>Hyperthyroidism</strong></td>
+            <td>0.966</td>
+            <td>0.968</td>
+            <td>0.003</td>
+            <td>95.9%</td>
+            <td>91.9%</td>
+            <td>44%</td>
+        </tr>
+        <tr>
+            <td><strong>Infection / Inflammation</strong></td>
+            <td>0.898</td>
+            <td>0.868</td>
+            <td>0.013</td>
+            <td>96.0%</td>
+            <td>93.7%</td>
+            <td>67%</td>
         </tr>
     </tbody>
 </table>
 
-<h3>Real-World Benchmark Suite & Multi-Label Evaluation Transition</h3>
-<p>
-    While the initial 3,000 synthetic records established baseline cut-offs, real patients exhibit complex multi-morbidity (e.g. concurrent Anemia and CKD, or Type 2 Diabetes with Diabetic Nephropathy). A single-label 8-class classifier artificially forces mutually exclusive categories. To resolve this, CliniQ AI's Central Consensus Engine operates as a <strong>multi-label pathology arbitration layer</strong>, scoring individual organ axes simultaneously (eGFR, ASCVD, Glycemia, Dengue, Anemia, CKDu) and outputting compound diagnoses rather than a single artificial label.
-</p>
-<p>
-    To ensure real-world generalization, the system incorporates a test suite in <code>data/real_reports/</code> populated via <code>dataset_downloader.py</code> using the Hugging Face <code>davanstrien/india-medical-ocr-test</code> dataset. Each record contains high-resolution real hospital report scans paired with verified ground-truth markdown transcripts for continuous OCR accuracy validation.
-</p>
+<h3>Honest Observations & Technical Weaknesses Documented</h3>
+<ul>
+    <li><strong>Infection Uncertainty (67% Abstention Rate):</strong> Infection detection from isolated white-cell parameters is inherently ill-posed because viral pathogens frequently present with normal WBC. The engine abstains (67% uncertainty) rather than issuing dangerous uncalibrated predictions.</li>
+    <li><strong>Hypercholesterolemia Overlap:</strong> Exhibits the lowest decision sensitivity (0.68) because borderline clinical lipid distributions intentionally overlap healthy reference bounds.</li>
+    <li><strong>Analyzer Shift & Site Recalibration:</strong> When evaluated on an unseen external laboratory with calibration drift, negative coverage drops to 0.74–0.79 for CKD and Anemia. Executing <code>recalibrate_site</code> using local physician sign-off labels completely restores negative coverage to 0.89–0.94 across all conditions.</li>
+    <li><strong>Assessability Guard:</strong> When entire panels are absent, legacy classifiers misclassified 7–15% of positive cases as "healthy". CliniQ Engine v2.2 enforces an assessability guard that drops this false negative rate to <strong>0.0%</strong> by strictly refusing to predict without mandatory inputs.</li>
+    <li><strong>OCR Decimal Slip Cross-Checking:</strong> Single-field physiological bounds and identities catch 64% of 10× slips; the remaining slips are surfaced via dual-reader cross-checking (<code>verify.cross_check_extractions</code>) between EasyOCR and VLM before physician analysis is finalized.</li>
+</ul>
 
 <div class="page-break"></div>
 

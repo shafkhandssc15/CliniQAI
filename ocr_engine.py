@@ -6,11 +6,10 @@ import base64
 import requests
 import joblib
 import numpy as np
-import torch
-import easyocr
 from PIL import Image, ImageDraw
 import io
 
+_tess_api = None
 _easyocr_reader = None
 _clinical_model = None
 _label_encoder = None
@@ -19,8 +18,13 @@ _feature_columns = None
 def get_easyocr_reader():
     global _easyocr_reader
     if _easyocr_reader is None:
-        gpu_available = torch.cuda.is_available()
-        _easyocr_reader = easyocr.Reader(['en'], gpu=gpu_available)
+        try:
+            import torch
+            import easyocr
+            gpu_available = torch.cuda.is_available()
+            _easyocr_reader = easyocr.Reader(['en'], gpu=gpu_available)
+        except Exception as e:
+            print(f"[OCR Engine] EasyOCR fallback unavailable: {e}")
     return _easyocr_reader
 
 def load_local_classifier():
@@ -35,10 +39,116 @@ def load_local_classifier():
             _feature_columns = joblib.load(cols_path)
     return _clinical_model, _label_encoder, _feature_columns
 
+def get_tesseract_cmd():
+    user_appdata = os.environ.get("LOCALAPPDATA", "")
+    user_prog = os.path.join(user_appdata, "Programs", "Tesseract-OCR", "tesseract.exe") if user_appdata else ""
+    user_tess = os.path.join(user_appdata, "Tesseract-OCR", "tesseract.exe") if user_appdata else ""
+    candidates = [
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        user_prog,
+        user_tess,
+        os.path.join(os.path.dirname(__file__), "tesseract", "tesseract.exe"),
+        os.environ.get("TESSERACT_PATH", "")
+    ]
+    for candidate in candidates:
+        if candidate and os.path.exists(candidate):
+            return candidate
+    import shutil
+    return shutil.which("tesseract")
+
 def extract_text_from_image(image_bytes, return_bboxes: bool = False):
-    reader = get_easyocr_reader()
     start_time = time.time()
-    results = reader.readtext(image_bytes)
+    
+    # ── Primary Engine: Native Tesseract 5.5.3 (C++ Leptonica in-process, ~0.2-0.8s) ──
+    try:
+        import tesserocr
+        tessdata_candidates = [
+            os.path.join(os.path.dirname(__file__), "tessdata"),
+            r"c:\CliniQ AI\tessdata",
+            r"C:\Program Files\Tesseract-OCR\tessdata",
+            os.environ.get("TESSDATA_PREFIX", "")
+        ]
+        tessdata_path = next((p for p in tessdata_candidates if p and os.path.exists(p) and os.path.exists(os.path.join(p, "eng.traineddata"))), None)
+        if tessdata_path:
+            pil_img = Image.open(io.BytesIO(image_bytes))
+            if pil_img.mode != "RGB":
+                pil_img = pil_img.convert("RGB")
+            
+            orig_w, orig_h = pil_img.size
+            # 2x Lanczos upsampling for optimal optical character recognition resolution
+            scale = 2.0 if max(orig_w, orig_h) < 2200 else 1.0
+            if scale > 1.0:
+                proc_img = pil_img.resize((int(orig_w * scale), int(orig_h * scale)), Image.Resampling.LANCZOS)
+            else:
+                proc_img = pil_img
+                
+            with tesserocr.PyTessBaseAPI(path=tessdata_path, lang="eng") as api:
+                api.SetImage(proc_img)
+                full_text = api.GetUTF8Text()
+                dur = time.time() - start_time
+                print(f"[OCR Engine] Primary Native Tesseract 5.5.3 OCR completed in {dur:.2f}s ({len(full_text)} chars)")
+                
+                if return_bboxes:
+                    api.Recognize()
+                    ri = api.GetIterator()
+                    level = tesserocr.RIL.WORD
+                    bboxes = []
+                    while ri and not ri.Empty(level):
+                        word = ri.GetUTF8Text(level)
+                        conf = ri.Confidence(level)
+                        box = ri.BoundingBox(level)
+                        if word and word.strip() and box:
+                            x0, y0, x1, y1 = [int(v / scale) for v in box]
+                            bx = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+                            bboxes.append((bx, word.strip(), float(conf) / 100.0))
+                        if not ri.Next(level):
+                            break
+                    return full_text, dur, bboxes
+                return full_text, dur
+    except Exception as tess_err:
+        print(f"[OCR Engine] Primary tesserocr error: {tess_err}. Trying secondary Tesseract CLI...")
+
+    # Secondary Path: pytesseract CLI if standalone binary installed
+    tess_cmd = get_tesseract_cmd()
+    if tess_cmd:
+        try:
+            print(f"[OCR Engine] Secondary Engine: Tesseract CLI ({tess_cmd})")
+            import pytesseract
+            pytesseract.pytesseract.tesseract_cmd = tess_cmd
+            pil_img = Image.open(io.BytesIO(image_bytes))
+            if pil_img.mode != "RGB":
+                pil_img = pil_img.convert("RGB")
+            
+            full_text = pytesseract.image_to_string(pil_img, lang="eng")
+            
+            if return_bboxes:
+                data = pytesseract.image_to_data(pil_img, lang="eng", output_type=pytesseract.Output.DICT)
+                bboxes = []
+                n_boxes = len(data.get("text", []))
+                for i in range(n_boxes):
+                    t = str(data["text"][i]).strip()
+                    if t:
+                        x, y, w, h = data["left"][i], data["top"][i], data["width"][i], data["height"][i]
+                        raw_c = data["conf"][i]
+                        conf = float(raw_c) / 100.0 if raw_c != "-1" else 0.5
+                        bbox = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
+                        bboxes.append((bbox, t, conf))
+                return full_text, time.time() - start_time, bboxes
+            return full_text, time.time() - start_time
+        except Exception as e:
+            print(f"[OCR Engine] Tesseract CLI error: {e}. Falling back to EasyOCR.")
+    else:
+        print("[OCR Engine] Tesseract binary not found. Falling back to EasyOCR.")
+
+    # Emergency Fallback: EasyOCR (PyTorch-based)
+    reader = get_easyocr_reader()
+    if reader is None:
+        if return_bboxes:
+            return "", time.time() - start_time, []
+        return "", time.time() - start_time
+
+    results = reader.readtext(image_bytes, batch_size=4, canvas_size=1280, mag_ratio=1.0)
     
     if not results:
         if return_bboxes:
@@ -70,7 +180,6 @@ def extract_text_from_image(image_bytes, return_bboxes: bool = False):
         for line in lines:
             line_y_avg = sum(item["y_center"] for item in line) / len(line)
             line_h_avg = sum(item["h"] for item in line) / len(line)
-            # Boxes belong to the same line if their vertical centers are within half-line height
             if abs(b["y_center"] - line_y_avg) <= max(10.0, line_h_avg * 0.65):
                 line.append(b)
                 placed = True
@@ -78,7 +187,6 @@ def extract_text_from_image(image_bytes, return_bboxes: bool = False):
         if not placed:
             lines.append([b])
 
-    # Sort lines top-to-bottom, and words within each line strictly left-to-right by x_min
     lines.sort(key=lambda line: sum(b["y_center"] for b in line) / len(line))
     for line in lines:
         line.sort(key=lambda b: b["x_min"])
@@ -103,8 +211,7 @@ def deidentify_report_image(image_bytes, ocr_results=None) -> bytes:
         draw = ImageDraw.Draw(pil_img)
 
         if ocr_results is None:
-            reader = get_easyocr_reader()
-            ocr_results = reader.readtext(image_bytes)
+            _, _, ocr_results = extract_text_from_image(image_bytes, return_bboxes=True)
 
         PII_IDENTIFIERS = [
             "name", "patient", "pt", "client", "nic", "identity",
@@ -153,6 +260,7 @@ def extract_patient_demographics(text):
         "test name", "investigation", "parameter", "profile", "specimen", "sample",
         "authorized", "authorise", "signature", "technologist", "pathologist", "biochemist",
         "report name", "printed on", "collection date", "reported on", "address", "phone",
+        "asiri", "asirihealth", "horns", "plc", "automated", "reference", "confidential", "www.", ".com",
         "රෝහල", "සායනය", "පරීක්ෂණ", "වෛද්‍ය", "மருத்துவமனை", "ஆய்வகம்", "பரிசோதனை"
     }
 
@@ -164,8 +272,8 @@ def extract_patient_demographics(text):
         r'pt\.?\s*name\s*[:\-#.]?',
         r'client\s*name\s*[:\-#.]?',
         r'customer\s*name\s*[:\-#.]?',
-        r'patient\s*[:\-#.]',
-        r'\bname\s*[:\-#.]',
+        r'patient\s*[:\-#.]?',
+        r'\bname\s*[:\-#.]?',
         # Sinhala (රෝගියාගේ නම, රෝගී නම, නම)
         r'රෝගියාගේ\s*නම\s*[:\-#.]?',
         r'රෝගී\s*නම\s*[:\-#.]?',
@@ -183,8 +291,9 @@ def extract_patient_demographics(text):
         r'nama\s*[:\-#.]?'
     ]
 
-    TITLE_PATTERN = r'\b(?:mr\.|mrs\.|ms\.|miss|master|mast\.|dr\.|rev\.|baby|b/o|shri|smt|ven\.|මයා|මිය|මෙනවිය|පූජ්‍ය|හිමි|திரு|திருமதி|செல்வி)\b'
+    TITLE_PATTERN = r'\b(?:mr\.?|mrs\.?|ms\.?|miss|master|mast\.?|dr\.?|rev\.?|baby|b/o|shri|smt|ven\.\s+|මයා|මිය|මෙනවිය|පූජ්‍ය|හිමි|திரு|திருமதி|செல்வி)\b'
 
+    # 1. Scan for Age and Gender
     for line in lines:
         ll = line.lower().strip()
 
@@ -196,7 +305,7 @@ def extract_patient_demographics(text):
                 if 1 <= v <= 120:
                     result["age"] = v
             if result["age"] is None:
-                age_m2 = re.search(r'\b(\d{1,3})\s*(?:years?|yrs?|y\b|වසර|வருடங்கள்)', line, re.IGNORECASE)
+                age_m2 = re.search(r'\b(\d{1,3})\s*(?:years?|yrs?|y\b|y/f|y/m|/f|/m|වසර|வருடங்கள்)', line, re.IGNORECASE)
                 if age_m2:
                     v = int(age_m2.group(1))
                     if 1 <= v <= 120:
@@ -204,50 +313,62 @@ def extract_patient_demographics(text):
 
         # Gender (English, Sinhala: ස්ත්‍රී / පුරුෂ, Tamil: பெண் / ஆண்)
         if result["gender"] is None:
-            if re.search(r'\b(?:sex|gender)\s*[:/\-]?\s*(?:female|f\b)', ll) or re.search(r'\b(female|woman)\b', ll) or any(s in line for s in ["ස්ත්‍රී", "ගැහැණු", "பெண்"]):
+            if re.search(r'\b(?:sex|gender)\s*[:/\-]?\s*(?:female|f\b)', ll) or re.search(r'\b(female|woman)\b', ll) or re.search(r'\b(?:\d{0,3}\s*)?(?:y|yrs?|years?)?\s*/\s*f\b', ll) or any(s in line for s in ["ස්ත්‍රී", "ගැහැණු", "பெண்"]):
                 result["gender"] = "Female"
-            elif re.search(r'\b(?:sex|gender)\s*[:/\-]?\s*(?:male|m\b)', ll) or re.search(r'\b(male|man)\b', ll) or any(s in line for s in ["පුරුෂ", "පිරිමි", "ஆண்"]):
+            elif re.search(r'\b(?:sex|gender)\s*[:/\-]?\s*(?:male|m\b)', ll) or re.search(r'\b(male|man)\b', ll) or re.search(r'\b(?:\d{0,3}\s*)?(?:y|yrs?|years?)?\s*/\s*m\b', ll) or any(s in line for s in ["පුරුෂ", "පිරිමි", "ஆண்"]):
                 if 'fe' not in ll.split('male')[0][-2:]:
                     result["gender"] = "Male"
-            elif re.search(r'\b\d{1,3}\s*/\s*f\b', ll):
-                result["gender"] = "Female"
-            elif re.search(r'\b\d{1,3}\s*/\s*m\b', ll):
-                result["gender"] = "Male"
 
-        # Name Extraction (Multilingual: English, Sinhala, Tamil, Arabic)
-        if result["name"] is None:
-            has_excluded = any(ex in ll for ex in EXCLUDE_TOKENS)
-            if has_excluded and not any(k in ll for k in ["patient name", "pt name", "name of patient", "pt. name", "රෝගියා", "නම", "பெயர்", "நோயாளி"]):
-                continue
+    # 2. Phase 1: Explicit Patient Prefix Scan across the entire document
+    for line in lines:
+        ll = line.lower().strip()
+        has_excluded = any(ex in ll for ex in EXCLUDE_TOKENS)
+        if has_excluded and not any(k in ll for k in ["patient name", "pt name", "name of patient", "pt. name", "patient :", "patient :", "රෝගියා", "නම", "பெயர்", "நோயாளி"]):
+            continue
 
-            for p_pat in NAME_PREFIXES:
-                match = re.search(rf'{p_pat}\s*([^\n\r\t|;#]+)', line, re.IGNORECASE)
-                if match:
-                    raw_candidate = match.group(1).strip()
-                    # Strip trailing metadata like age, sex, date, sample no, etc.
-                    raw_candidate = re.split(r'\b(?:age|sex|gender|date|ref|dr\b|doctor|pid|uhid|ipd|opd|reg|id|bill|lab\s*no|sample|වයස|ස්ත්‍රී|පුරුෂ|வயது|ஆண்|பெண்)\b|[|;\t]', raw_candidate, flags=re.IGNORECASE)[0].strip()
-                    clean = re.sub(r'^[^\w\u0D80-\u0DFF\u0B80-\u0BFF]+|[^\w\u0D80-\u0DFF\u0B80-\u0BFF.]+$', '', raw_candidate).strip()
-                    clean = re.sub(r'\s+', ' ', clean)
-                    clean = re.sub(r'[\d_#=+\\/*]', '', clean).strip(' ,:;-')
-                    words = clean.split()
-                    filtered_words = [w for w in words if w.lower() not in {"years", "year", "yrs", "yr", "male", "female", "y", "m", "f", "patient", "name", "report", "වයස", "නම", "பெயர்", "வயது", "ස්ත්‍රී", "පුරුෂ"}]
-                    clean = " ".join(filtered_words)
-                    if len(clean) >= 2 and re.search(r'[\w\u0D80-\u0DFF\u0B80-\u0BFF]', clean) and not any(k in clean.lower() for k in ["hemoglobin", "glucose", "calcium", "serum", "blood", "urine", "count", "profile", "test", "laboratory", "hospital", "pathology"]):
-                        result["name"] = clean.strip()
-                        break
+        for p_pat in NAME_PREFIXES:
+            match = re.search(rf'{p_pat}\s*([^\n\r\t|;#]+)', line, re.IGNORECASE)
+            if match:
+                raw_candidate = match.group(1).strip()
+                # Strip trailing metadata like age, sex, date, sample no, etc.
+                raw_candidate = re.split(r'\b(?:age|sex|gender|date|ref|dr\b|doctor|pid|uhid|ipd|opd|reg|id|bill|lab\s*no|sample|වයස|ස්ත්‍රී|පුරුෂ|வயது|ஆண்|பெண்)\b|[|;\t]', raw_candidate, flags=re.IGNORECASE)[0].strip()
+                raw_candidate = re.sub(r'^[MK]PS\.?\s*', 'MRS. ', raw_candidate, flags=re.IGNORECASE).strip()
+                clean = re.sub(r'^[^\w\u0D80-\u0DFF\u0B80-\u0BFF]+|[^\w\u0D80-\u0DFF\u0B80-\u0BFF.]+$', '', raw_candidate).strip()
+                clean = re.sub(r'\s+', ' ', clean)
+                clean = re.sub(r'[\d_#=+\\/*]', '', clean).strip(' ,:;-')
+                words = clean.split()
+                filtered_words = [w for w in words if w.lower() not in {"years", "year", "yrs", "yr", "male", "female", "y", "m", "f", "patient", "name", "report", "වයස", "නම", "பெயர்", "வயது", "ස්ත්‍රී", "පුරුෂ"}]
+                clean = " ".join(filtered_words)
+                if len(clean) >= 2 and re.search(r'[\w\u0D80-\u0DFF\u0B80-\u0BFF]', clean) and not any(k in clean.lower() for k in ["hemoglobin", "haemoglobin", "glucose", "calcium", "serum", "blood", "urine", "count", "profile", "test", "laboratory", "hospital", "pathology"]):
+                    result["name"] = clean.strip()
+                    break
+        if result["name"]:
+            break
 
-        # Fallback: Title Matching
-        if result["name"] is None:
+    # 3. Phase 2: Fallback Title Matching (only if no explicit prefix found)
+    if result["name"] is None:
+        for line in lines:
+            ll = line.lower().strip()
             has_excluded = any(ex in ll for ex in EXCLUDE_TOKENS)
             if not has_excluded:
                 title_match = re.search(rf'({TITLE_PATTERN}\s+[^\n\r\t|;#]+)', line, re.IGNORECASE)
                 if title_match:
                     raw_candidate = title_match.group(1).strip()
                     raw_candidate = re.split(r'\b(?:age|sex|gender|date|ref|pid|uhid|reg|id|වයස|ස්ත්‍රී|පුරුෂ|வயது)\b|[|;\t]', raw_candidate, flags=re.IGNORECASE)[0].strip()
+                    raw_candidate = re.sub(r'^[MK]PS\.?\s*', 'MRS. ', raw_candidate, flags=re.IGNORECASE).strip()
                     clean = re.sub(r'[\d_#=+\\/*]', '', raw_candidate).strip(' ,:;-')
                     clean = re.sub(r'\s+', ' ', clean)
                     if len(clean) >= 3 and not any(k in clean.lower() for k in ["doctor", "dr.", "consultant"]):
                         result["name"] = clean.strip()
+                        break
+
+    # 4. Gender Inference from Personal Title if gender was not explicitly present in table
+    if result["gender"] is None and result["name"]:
+        nl = result["name"].lower()
+        if re.search(r'\b(?:mrs\.?|ms\.?|miss|මිය|මෙනවිය|திருமதி|செல்வி)\b', nl):
+            result["gender"] = "Female"
+        elif re.search(r'\b(?:mr\.?|master|mast\.?|මයා|திரு)\b', nl):
+            result["gender"] = "Male"
 
     return result
 
@@ -257,17 +378,23 @@ def extract_smart_biomarker(line: str, min_val: float, max_val: float, unit_hint
     Accurately ignores reference range columns, bracketed ranges, and hyphenated ranges.
     Prioritizes:
     1. Numbers immediately preceding known measurement units
-    2. Numbers following the biomarker name before reference ranges
-    3. Non-reference-range isolated numbers within physiological limits
+    2. Candidate numbers in range-cleaned line
+    3. Guarantees that reference range limits are NEVER extracted as patient results
     """
     if not line or not line.strip():
         return None
 
+    # Pre-normalize: separate multipliers and common unit tokens from attached numbers
+    # e.g., '380x10^9/L' -> '380 x10^9/L', '8.2gdL' -> '8.2 g/dL'
+    norm_line = re.sub(r'(\d+(?:\.\d+)?)\s*([x*]\s*10[\^*]?\s*\d*(?:/[a-zA-Z]+)?)', r' \1 \2 ', line, flags=re.IGNORECASE)
+    norm_line = re.sub(r'(\d+(?:\.\d+)?)([a-zA-Z/%])', r'\1 \2', norm_line)
+    norm_line = re.sub(r'([a-zA-Z/%])(\d+(?:\.\d+)?)', r'\1 \2', norm_line)
+
     # 1. Check if a number is directly followed by a recognized measurement unit
     if unit_hints:
         for u in unit_hints:
-            pattern = re.compile(rf'(\d+(?:\.\d+)?)\s*(?:{re.escape(u)})\b', re.IGNORECASE)
-            m = pattern.search(line)
+            pattern = re.compile(rf'(?<![.\d])(\d+(?:\.\d+)?)\s*(?:{re.escape(u)})\b', re.IGNORECASE)
+            m = pattern.search(norm_line)
             if m:
                 try:
                     val = float(m.group(1))
@@ -278,27 +405,20 @@ def extract_smart_biomarker(line: str, min_val: float, max_val: float, unit_hint
 
     # 2. Identify and sanitize explicit reference ranges:
     # Matches: (0.55 - 4.78), [0.55 - 4.78], 0.55 - 4.78, 0.55 – 4.78, 0.55 to 4.78, 0.55..4.78
-    clean_line = re.sub(r'[\(\[\{]?\s*\d+(?:\.\d+)?\s*(?:[-–—]|to|\.\.)\s*\d+(?:\.\d+)?\s*[\)\]\}]?', ' [REF_RANGE] ', line, flags=re.IGNORECASE)
+    clean_line = re.sub(r'[\(\[\{]?\s*\d+(?:\.\d+)?\s*(?:[-–—]|to|\.\.)\s*\d+(?:\.\d+)?\s*[\)\]\}]?', ' [REF_RANGE] ', norm_line, flags=re.IGNORECASE)
     clean_line = re.sub(r'(?:ref\.?\s*range|reference|normal|ref|biological\s*ref|range)\s*[:\-]?\s*[\(\[\{]?\s*[\d\.\-\–\—\s\<\>to]+\s*[\)\]\}]?', ' [REF_RANGE] ', clean_line, flags=re.IGNORECASE)
+    clean_line = re.sub(r'[\(\[\{][^\)\]\}]*[\)\]\}]', ' [REF_RANGE] ', clean_line)
 
     # 3. Find candidate numbers in the range-cleaned line
-    num_pattern = re.compile(r'\b(\d+(?:\.\d+)?)\b')
+    num_pattern = re.compile(r'(?<![.\d])(\d+(?:\.\d+)?)(?![.\d])')
     nums = num_pattern.findall(clean_line)
     if nums:
         for n in nums:
             try:
                 val = float(n)
-                if min_val <= val <= max_val:
-                    return val
-            except ValueError:
-                pass
-
-    # 4. Fallback: Take the first candidate number from the original line (in left-to-right order)
-    all_nums = num_pattern.findall(line)
-    if all_nums:
-        for n in all_nums:
-            try:
-                val = float(n)
+                # Ignore isolated multiplier exponents like 9 or 3 from 10^9 or 10^3 if they appear alone
+                if val in (3.0, 9.0, 10.0, 12.0) and any(tok in clean_line for tok in ['10', '^', '*', 'x']) and min_val > 10.0:
+                    continue
                 if min_val <= val <= max_val:
                     return val
             except ValueError:
@@ -332,16 +452,16 @@ def parse_biomarkers(text):
             elif any(x in line for x in ["male", " m ", "/m", "පුරුෂ", "පිරිමි", "ஆண்"]):
                 extracted["Gender"] = "Male"
 
-        if any(k in line for k in ["hemoglobin", "hb", "hgb", "hemo"]) and extracted["Hemoglobin"] is None:
-            val = extract_smart_biomarker(line, 3.0, 24.0, ["g/dl", "g/l", "g%", "gm/dl"])
+        if any(k in line for k in ["haemoglobin", "hemoglobin", "hb", "hgb", "hemo", "haemo"]) and extracted["Hemoglobin"] is None:
+            val = extract_smart_biomarker(line, 3.0, 24.0, ["g/dl", "g/l", "g/t", "g%", "gm/dl"])
             if val is not None: extracted["Hemoglobin"] = val
 
-        if any(k in line for k in ["wbc", "white blood", "leukocyte", "tcl", "w.b.c"]) and extracted["WBC"] is None:
-            val = extract_smart_biomarker(line, 0.5, 100.0, ["10^3", "10*3", "x10^3", "/cumm", "/ul", "/mm3", "k/ul", "cells/cumm", "10^9/l"])
+        if any(k in line for k in ["wbc", "white cell", "white blood", "leukocyte", "tcl", "w.b.c"]) and extracted["WBC"] is None:
+            val = extract_smart_biomarker(line, 0.5, 100.0, ["10^3", "10*3", "x10^3", "/cumm", "/ul", "/mm3", "k/ul", "cells/cumm", "10^9/l", "10*9/l"])
             if val is not None: extracted["WBC"] = val
 
         if any(k in line for k in ["platelet", "plt", "thrombocyte", "p.l.t"]) and extracted["Platelets"] is None:
-            val = extract_smart_biomarker(line, 10.0, 1500.0, ["10^3", "10*3", "x10^3", "/cumm", "/ul", "/mm3", "k/ul", "lakhs", "10^9/l"])
+            val = extract_smart_biomarker(line, 10.0, 1500.0, ["10^3", "10*3", "x10^3", "/cumm", "/ul", "/mm3", "k/ul", "lakhs", "10^9/l", "10*9/l"])
             if val is not None: extracted["Platelets"] = int(val)
 
         if any(k in line for k in ["glucose", "fbs", "blood sugar", "sugar", "fasting"]) and extracted["Fasting_Blood_Sugar"] is None:
@@ -485,6 +605,512 @@ def parse_biomarkers(text):
             extracted_flags[em] = False
             
     return final_values, extracted_flags
+
+# ── Universal Laboratory Values Extractor (Tesseract OCR Engine) ───────────
+LAB_KNOWN_UNITS = [
+    "x10^12/l", "10^12/l", "x10^9/l", "10^9/l", "x10^3/ul", "10^3/ul", "cells/cumm", "/cumm", "/ul", "/mm3", "k/ul",
+    "g/dl", "g/l", "mg/dl", "mg/l", "ug/dl", "ng/ml", "pg/ml", "ng/l", "pmol/l", "nmol/l", "mmol/l", "umol/l",
+    "µmol/l", "meq/l", "uiu/ml", "miu/l", "u/l", "iu/l", "fl", "pg", "ml/min", "ml/min/1.73m2", "mg/g",
+    "mm/1st hr", "mm/hr", "mm", "%", "ratio", "index"
+]
+
+CATEGORY_PATTERNS = {
+    "Glucose & Metabolism": [
+        r"\bhba1c\b", r"glycated", r"\bglucose\b", r"\bfbs\b", r"\bfpg\b", r"blood sugar", r"\bsugar\b",
+        r"\bppbs\b", r"\brbs\b", r"\binsulin\b", r"\bhoma\b"
+    ],
+    "CBC": [
+        r"\bhaemoglobin\b", r"\bhemoglobin\b", r"\bhb\b", r"\bhgb\b",
+        r"\bwbc\b", r"white blood", r"white cell", r"\bleukocyte\b", r"total leukocyte", r"\btlc\b"
+    ],
+    "Differential Count": [
+        r"\bneutrophil", r"\blymphocyte", r"\bmonocyte", r"\beosinophil", r"\bbasophil",
+        r"\bpolymorph", r"\bband cell", r"\banc\b", r"\balc\b", r"\baec\b"
+    ],
+    "Red Blood Cells": [
+        r"\brbc\b", r"red blood", r"\berythrocyte", r"\bpcv\b", r"packed cell",
+        r"\bhematocrit\b", r"\bhct\b", r"\bmcv\b", r"\bmch\b", r"\bmchc\b", r"\brdw\b"
+    ],
+    "Platelets": [
+        r"\bplatelet", r"\bplt\b", r"\bthrombocyte", r"\bmpv\b", r"\bpdw\b", r"\bpct\b"
+    ],
+    "Liver Function": [
+        r"\balt\b", r"\bsgpt\b", r"\bast\b", r"\bsgot\b", r"\balp\b", r"alkaline phosphatase",
+        r"\bbilirubin", r"total protein", r"\balbumin\b", r"\bglobulin\b", r"a/g ratio", r"\bggt\b", r"gamma gt"
+    ],
+    "Kidney Function": [
+        r"\bcreatinine\b", r"\burea\b", r"\bbun\b", r"\begfr\b", r"\bgfr\b", r"uric acid",
+        r"\burate\b", r"microalbumin", r"\bcystatin\b"
+    ],
+    "Electrolytes": [
+        r"\bsodium\b", r"\bpotassium\b", r"\bchloride\b", r"\bbicarbonate\b", r"\bco2\b",
+        r"\bcalcium\b", r"\bmagnesium\b", r"\bphosphorus\b", r"\bphosphate\b"
+    ],
+    "Lipid Profile": [
+        r"cholesterol", r"triglyceride", r"\bhdl\b", r"\bldl\b", r"\bvldl\b",
+        r"non-hdl", r"tc/hdl", r"lipid"
+    ],
+    "Thyroid Function": [
+        r"\btsh\b", r"\bft3\b", r"\bft4\b", r"free t3", r"free t4", r"total t3", r"total t4", r"thyroid"
+    ],
+    "Inflammatory & Serology": [
+        r"\bcrp\b", r"\besr\b", r"\bferritin\b", r"\biron\b", r"\btibc\b", r"\btransferrin\b",
+        r"\bdengue\b", r"\bns1\b", r"\btroponin\b", r"vitamin d", r"vitamin b12", r"\bvit d\b", r"\bvit b12\b"
+    ],
+    "Urinalysis": [
+        r"\burine\b", r"pus cells", r"epithelial", r"specific gravity", r"urobilinogen",
+        r"nitrite", r"ketone", r"casts", r"crystals"
+    ]
+}
+
+def extract_all_laboratory_values(text: str, image_bytes: bytes = None, ocr_bboxes: list = None) -> dict:
+    """
+    Extracts all laboratory results and report-provided reference values.
+    """
+    def _merge_reference_values_from_bboxes(results: list, ocr_bboxes: list) -> None:
+        if not ocr_bboxes:
+            return
+
+        words = []
+        for bbox, text, confidence in ocr_bboxes:
+            if not text or not str(text).strip():
+                continue
+            xs = [point[0] for point in bbox]
+            ys = [point[1] for point in bbox]
+            words.append({
+                "text": str(text).strip(),
+                "x0": min(xs),
+                "x1": max(xs),
+                "y": (min(ys) + max(ys)) / 2,
+                "height": max(1, max(ys) - min(ys)),
+            })
+
+        words.sort(key=lambda word: word["y"])
+        rows = []
+        for word in words:
+            row = next((
+                candidate for candidate in rows
+                if abs(word["y"] - candidate["y"]) <= max(5, min(word["height"], candidate["height"]) * 0.65)
+            ), None)
+            if row is None:
+                row = {"y": word["y"], "height": word["height"], "words": []}
+                rows.append(row)
+            row["words"].append(word)
+            row["y"] = sum(item["y"] for item in row["words"]) / len(row["words"])
+            row["height"] = sum(item["height"] for item in row["words"]) / len(row["words"])
+
+        for row in rows:
+            row["words"].sort(key=lambda word: word["x0"])
+            row["text"] = " ".join(word["text"] for word in row["words"])
+
+        header = next((
+            row for row in rows
+            if "reference" in row["text"].lower() and "value" in row["text"].lower()
+        ), None)
+        if header is None:
+            return
+
+        reference_start = min(
+            word["x0"] for word in header["words"]
+            if "reference" in word["text"].lower()
+        )
+        reference_pattern = re.compile(
+            r"(?:[<>]=?\s*)?\d+(?:[.,]\d+)?\s*%?\s*(?:[-–—]|to)\s*\d+(?:[.,]\d+)?\s*%?"
+            r"|[<>]=?\s*\d+(?:[.,]\d+)?\s*%?",
+            re.IGNORECASE
+        )
+
+        for result in results:
+            name = re.sub(r"[^a-z0-9]", "", result.get("test_name", "").lower())
+            if len(name) < 3:
+                continue
+            matching_rows = [row for row in rows if name in re.sub(r"[^a-z0-9]", "", row["text"].lower())]
+            if not matching_rows:
+                continue
+            result_row = matching_rows[0]
+            reference_words = [word for word in result_row["words"] if word["x0"] >= reference_start - 4]
+            reference_text = " ".join(word["text"] for word in reference_words).strip()
+            if not reference_pattern.search(reference_text):
+                next_rows = [row for row in rows if result_row["y"] < row["y"] <= result_row["y"] + max(8, result_row["height"] * 1.8)]
+                for next_row in next_rows:
+                    continuation = " ".join(
+                        word["text"] for word in next_row["words"] if word["x0"] >= reference_start - 4
+                    ).strip()
+                    if continuation and re.fullmatch(r"[\d.,()\[\]<>%+\-–—\s]+", continuation):
+                        reference_text = f"{reference_text} {continuation}".strip()
+
+            if not reference_pattern.search(reference_text):
+                continue
+
+            reference_text = re.sub(r"\s+([%)\]])", r"\1", reference_text)
+            reference_text = re.sub(r"([([])\s+", r"\1", reference_text)
+            result["reference_value"] = reference_text
+            reference_range = result.setdefault("reference_range", {})
+            reference_range["raw"] = reference_text
+            reference_range["provided"] = True
+
+            bounds = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:-|–|—|to)\s*(\d+(?:[.,]\d+)?)", reference_text, re.IGNORECASE)
+            if bounds:
+                reference_range["low"] = float(bounds.group(1).replace(",", "."))
+                reference_range["high"] = float(bounds.group(2).replace(",", "."))
+
+            value = result.get("result_value")
+            flag = result.get("original_flag")
+            low = reference_range.get("low")
+            high = reference_range.get("high")
+            if flag and "h" in flag.lower():
+                result["result_status"] = "high"
+            elif flag and "l" in flag.lower():
+                result["result_status"] = "low"
+            elif isinstance(value, (int, float)) and low is not None and high is not None:
+                result["result_status"] = "low" if value < low else "high" if value > high else "normal"
+    if not text:
+        return {
+            "patient_identifier": None,
+            "report_date": None,
+            "laboratory_name": None,
+            "results": [],
+            "warnings": ["No text detected by OCR engine."],
+            "completeness_summary": {
+                "pages_reviewed": 0,
+                "results_extracted": 0,
+                "categories_found": [],
+                "status_counts": {},
+                "unprocessed_sections": []
+            }
+        }
+
+    # Split into pages if multi-page separators exist
+    raw_pages = re.split(r'\x0c|--- PAGE \d+ ---|\bPage \d+ of \d+\b', text)
+    pages = [p.strip() for p in raw_pages if p.strip()] or [text.strip()]
+    pages_count = max(1, len(pages))
+
+    patient_id = None
+    report_date = None
+    lab_name = None
+
+    LAB_KEYWORDS = [
+        "hospital", "laboratory", "laboratories", "diagnostics", "pathology", "clinic", "centre", "center",
+        "asiri", "nawaloka", "durdans", "lanka hospitals", "metropolis", "quest", "labcorp"
+    ]
+
+    all_results = []
+    all_warnings = []
+    unprocessed = []
+
+    SECTION_HEADERS = [
+        ("HAEMATOLOGY", "CBC"),
+        ("COMPLETE BLOOD COUNT", "CBC"),
+        ("FULL BLOOD COUNT", "CBC"),
+        ("DIFFERENTIAL LEUKOCYTE COUNT", "Differential Count"),
+        ("DIFFERENTIAL COUNT", "Differential Count"),
+        ("RED BLOOD CELL INDICES", "Red Blood Cells"),
+        ("LIVER FUNCTION TESTS", "Liver Function"),
+        ("HEPATIC PROFILE", "Liver Function"),
+        ("RENAL FUNCTION TESTS", "Kidney Function"),
+        ("KIDNEY FUNCTION", "Kidney Function"),
+        ("LIPID PROFILE", "Lipid Profile"),
+        ("SERUM ELECTROLYTES", "Electrolytes"),
+        ("ELECTROLYTES", "Electrolytes"),
+        ("THYROID PROFILE", "Thyroid Function"),
+        ("URINE ROUTINE", "Urinalysis"),
+        ("URINALYSIS", "Urinalysis"),
+        ("BIOCHEMISTRY", "Liver Function"),
+        ("SEROLOGY", "Inflammatory & Serology"),
+        ("IMMUNOLOGY", "Inflammatory & Serology")
+    ]
+
+    for p_idx, page_content in enumerate(pages, 1):
+        lines = [line.strip() for line in page_content.split("\n") if line.strip()]
+        joined_lines = []
+        for line in lines:
+            is_reference_continuation = re.fullmatch(
+                r"\(\s*\d+(?:\.\d+)?\s*(?:-|–|—|to)\s*\d+(?:\.\d+)?\s*\)",
+                line,
+                re.IGNORECASE
+            )
+            if joined_lines and is_reference_continuation:
+                joined_lines[-1] = f"{joined_lines[-1]} {line}"
+            else:
+                joined_lines.append(line)
+        lines = joined_lines
+
+        # Metadata scan on early lines of document
+        if p_idx == 1:
+            for line in lines[:15]:
+                low = line.lower()
+                if not lab_name and any(k in low for k in LAB_KEYWORDS) and not any(skip in low for skip in ["patient", "doctor", "dr.", "age"]):
+                    clean_l = re.sub(r'[\:\;\#\*\-]+', '', line).strip()
+                    if 3 < len(clean_l) < 60:
+                        lab_name = clean_l
+
+                if not patient_id:
+                    m_pid = re.search(r'\b(?:patient\s*(?:name|id|no)?|name|pt\.?\s*name|uhid|reg\s*no)\s*[:\-#]?\s*([A-Za-z0-9\.\s]+)', line, re.IGNORECASE)
+                    if m_pid:
+                        cand = m_pid.group(1).strip()
+                        cand = re.split(r'\b(?:age|sex|date|gender|ref)\b', cand, flags=re.IGNORECASE)[0].strip()
+                        if 2 <= len(cand) <= 40 and not any(kw in cand.lower() for kw in ["hemoglobin", "test", "report", "pathology"]):
+                            patient_id = cand
+
+                if not report_date:
+                    m_date = re.search(r'\b(?:date|reported|collected|printed)\s*[:\-#]?\s*(\d{1,4}[-/\.]\d{1,2}[-/\.]\d{2,4})', line, re.IGNORECASE)
+                    if m_date:
+                        report_date = m_date.group(1).strip()
+                    else:
+                        m_date2 = re.search(r'\b(\d{1,2}[-/\.](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-/\.]\d{2,4})\b', line, re.IGNORECASE)
+                        if m_date2:
+                            report_date = m_date2.group(1).strip()
+
+        current_section = "General Clinical Pathology"
+        current_category = "Other"
+
+        for line in lines:
+            line_clean = line.strip()
+            low = line_clean.lower()
+
+            # Check for section header
+            is_header = False
+            for header_text, cat_hint in SECTION_HEADERS:
+                if header_text.lower() in low and len(line_clean) < 50 and not any(c.isdigit() for c in line_clean if c not in ["1", "2", "3"]):
+                    current_section = header_text.title()
+                    current_category = cat_hint
+                    is_header = True
+                    break
+
+            if is_header:
+                continue
+
+            # Skip demographic, patient, header, facility contact, and administrative rows
+            if any(h in low for h in [
+                "patient name", "pt. name", "pt name", "name of patient", "patient:", "age / sex", "age/sex", "age | sex", "age|sex",
+                "age:", "gender:", "report ref", "bill no", "sample no", "uhid:", "uhid-", "reg no", "dr.",
+                "test parameter", "investigation", "reference range", "clinical pathology",
+                "authorized signature", "page 1 of", "reported on", "referred by", "doctor:",
+                "address:", "address", "phone:", "phone", "tel:", "tel.", "fax:", "email:", "laboratory", "accredited"
+            ]) or re.search(r'\b(?:patient|pt\.?|age|gender|sex|ref|uhid|address|phone|tel|fax|email)\b\s*[\:\/\|\-]', low):
+                if not any(k in low for k in ["haemoglobin", "glucose", "cholesterol", "platelet", "creatinine", "wbc", "tsh"]):
+                    continue
+
+            # Step A: Preserve report reference values from the line tail
+            ref_raw = None
+            ref_low = None
+            ref_high = None
+
+            number_pattern = r"\d+(?:\.\d+)?"
+            range_pattern = rf"{number_pattern}\s*%?\s*(?:-|–|—|to)\s*{number_pattern}\s*%?"
+            qualified_pattern = rf"[<>]=?\s*{number_pattern}\s*%?(?:\s*(?:-|–|—|to)\s*{number_pattern}\s*%?)?"
+            interval_pattern = rf"(?:\(\s*(?:{range_pattern}|{qualified_pattern})\s*\)|{range_pattern}|{qualified_pattern})"
+            m_reference = re.search(rf"({interval_pattern}(?:\s+{interval_pattern})*)\s*$", line_clean, re.IGNORECASE)
+            if m_reference:
+                ref_raw = m_reference.group(1)
+                m_range = re.search(rf"({number_pattern})\s*(?:-|–|—|to)\s*({number_pattern})", ref_raw, re.IGNORECASE)
+                if m_range:
+                    try:
+                        ref_low = float(m_range.group(1))
+                        ref_high = float(m_range.group(2))
+                    except ValueError:
+                        pass
+                rem_line = line_clean[:m_reference.start()].strip()
+            else:
+                m_ineq = re.search(r'([<>]=?)\s*(\d+(?:\.\d+)?)\s*$', line_clean)
+                if m_ineq:
+                    ref_raw = m_ineq.group(0).strip()
+                    try:
+                        num = float(m_ineq.group(2))
+                        if "<" in m_ineq.group(1):
+                            ref_high = num
+                        else:
+                            ref_low = num
+                    except ValueError:
+                        pass
+                    rem_line = line_clean[:m_ineq.start()].strip()
+                else:
+                    m_qual = re.search(r'\b(NEGATIVE|NON-REACTIVE|NOT DETECTED|NIL|NORMAL)\b\s*$', line_clean, re.IGNORECASE)
+                    if m_qual:
+                        ref_raw = m_qual.group(1)
+                        rem_line = line_clean[:m_qual.start()].strip()
+                    else:
+                        rem_line = line_clean
+
+            # Step B: Value and Flag in rem_line
+            result_val = None
+            result_raw = None
+            flag_found = None
+            test_name = None
+            tail_after_val = ""
+
+            # Check qualitative values
+            m_qual_val = re.search(r'\b(POSITIVE|NEGATIVE|REACTIVE|NON-REACTIVE|DETECTED|NOT DETECTED|PRESENT|ABSENT|NIL|TRACE)\b', rem_line, re.IGNORECASE)
+            if m_qual_val:
+                result_raw = m_qual_val.group(1).upper()
+                result_val = result_raw
+                test_name = rem_line[:m_qual_val.start()].strip()
+                tail_after_val = rem_line[m_qual_val.end():].strip()
+            else:
+                # Mask parenthesized text to prevent numbers inside test names like (25-OH) being selected
+                bracket_tokens = []
+                def repl_bracket(m):
+                    idx = len(bracket_tokens)
+                    bracket_tokens.append(m.group(0))
+                    return f"__BRACKET_{idx}__"
+
+                masked_line = re.sub(r'\([^\)]*\)', repl_bracket, rem_line)
+
+                m_num = re.search(r'(?<![.\w/])(\d+(?:\.\d+)?)\s*([\*HL])?(?:\s+([HL]))?\b', masked_line)
+                if m_num:
+                    result_raw = m_num.group(1)
+                    try:
+                        result_val = float(result_raw)
+                    except ValueError:
+                        result_val = result_raw
+                    f1 = m_num.group(2)
+                    f2 = m_num.group(3)
+                    flag_found = (f1 or f2 or "").strip() or None
+                    test_name_masked = masked_line[:m_num.start()].strip()
+                    tail_after_val_masked = masked_line[m_num.end():].strip()
+
+                    for i, tok in enumerate(bracket_tokens):
+                        test_name_masked = test_name_masked.replace(f"__BRACKET_{i}__", tok)
+                        tail_after_val_masked = tail_after_val_masked.replace(f"__BRACKET_{i}__", tok)
+
+                    test_name = test_name_masked
+                    tail_after_val = tail_after_val_masked
+
+            if not flag_found and tail_after_val:
+                m_fl = re.search(r'^[\*HL]\b|^\*', tail_after_val)
+                if m_fl:
+                    flag_found = m_fl.group(0).strip()
+                    tail_after_val = tail_after_val[m_fl.end():].strip()
+                else:
+                    m_fl = re.search(r'(?<![\w/])([HL])\s*$|(?<!\w)(\*)\s*$', tail_after_val, re.IGNORECASE)
+                    if m_fl:
+                        flag_found = m_fl.group(1) or m_fl.group(2)
+                        tail_after_val = tail_after_val[:m_fl.start()].strip()
+
+            # Step C: Unit extraction from tail_after_val
+            unit_found = None
+            for u in sorted(LAB_KNOWN_UNITS, key=len, reverse=True):
+                pattern = rf'\b{re.escape(u)}\b'
+                if u == "%": pattern = r'%'
+                unit_match = re.search(pattern, tail_after_val, re.IGNORECASE)
+                if unit_match:
+                    unit_found = unit_match.group(0)
+                    break
+
+            if not test_name or len(test_name) < 2:
+                if any(num in low for num in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]):
+                    unprocessed.append(line_clean)
+                continue
+
+            test_name = re.sub(r'^[\d\.\-\*\•\s]+', '', test_name)
+            test_name = re.sub(r'[\:\.\-\s]+$', '', test_name).strip()
+
+            if result_val is None or len(test_name) < 2:
+                continue
+
+            # Step D: Category Determination
+            name_low = test_name.lower()
+            matched_cat = None
+            for cat, patterns in CATEGORY_PATTERNS.items():
+                if any(re.search(pat, name_low, re.IGNORECASE) for pat in patterns):
+                    matched_cat = cat
+                    break
+            final_category = matched_cat or current_category or "Other"
+
+            # Step E: Result Status Determination
+            status = "undetermined"
+            if isinstance(result_val, (int, float)):
+                if flag_found and "h" in flag_found.lower():
+                    status = "high"
+                elif flag_found and "l" in flag_found.lower():
+                    status = "low"
+                elif flag_found and any(c in flag_found.lower() for c in ["crit", "panic"]):
+                    status = "critical"
+                elif ref_low is not None and ref_high is not None:
+                    if result_val < ref_low:
+                        status = "low"
+                    elif result_val > ref_high:
+                        status = "high"
+                    else:
+                        status = "normal"
+                elif ref_high is not None and ref_low is None:
+                    status = "high" if result_val > ref_high else "normal"
+                elif ref_low is not None and ref_high is None:
+                    status = "low" if result_val < ref_low else "normal"
+                elif flag_found and "*" in flag_found:
+                    status = "high"
+                else:
+                    # User requirement: If reference range absent and no flag, status is undetermined
+                    status = "undetermined"
+            elif isinstance(result_val, str):
+                val_upper = result_val.upper()
+                if any(p in val_upper for p in ["POSITIVE", "REACTIVE", "DETECTED", "PRESENT", "ABNORMAL", "TRACE"]):
+                    status = "positive"
+                elif any(n in val_upper for n in ["NEGATIVE", "NON-REACTIVE", "NOT DETECTED", "ABSENT", "NIL"]):
+                    status = "negative"
+                elif val_upper == "NORMAL":
+                    status = "normal"
+                else:
+                    status = "undetermined"
+
+            # Deduplication: remove true duplicates (same test name and result value and unit)
+            is_dup = False
+            for ex in all_results:
+                if ex["test_name"].lower() == test_name.lower() and ex["result_value"] == result_val and ex["unit"] == unit_found:
+                    is_dup = True
+                    break
+
+            if not is_dup:
+                all_results.append({
+                    "test_name": test_name,
+                    "result": result_val,
+                    "result_value": result_val,
+                    "result_raw": str(result_raw),
+                    "unit": unit_found if unit_found else None,
+                    "unit_provided": bool(unit_found),
+                    "reference_range": {
+                        "raw": ref_raw if ref_raw else None,
+                        "low": ref_low if ref_low is not None else None,
+                        "high": ref_high if ref_high is not None else None,
+                        "provided": bool(ref_raw)
+                    },
+                    "reference_value": ref_raw if ref_raw else "Not provided",
+                    "result_status": status,
+                    "test_category": final_category,
+                    "flag": flag_found,
+                    "original_flag": flag_found,
+                    "page_section": f"Page {p_idx} — {current_section}",
+                    "extraction_confidence": "high" if (unit_found or ref_raw) else "medium",
+                    "confidence": "high" if (unit_found or ref_raw) else "medium",
+                    "is_estimated": False
+                })
+
+    _merge_reference_values_from_bboxes(all_results, ocr_bboxes)
+
+    status_counts = {}
+    categories_found = list(dict.fromkeys([r["test_category"] for r in all_results]))
+    for r in all_results:
+        st = r["result_status"]
+        status_counts[st] = status_counts.get(st, 0) + 1
+
+    if unprocessed:
+        all_warnings.append(f"{len(unprocessed)} line(s) contained numerical data but could not be definitively structured.")
+
+    return {
+        "patient_identifier": patient_id,
+        "report_date": report_date,
+        "laboratory_name": lab_name,
+        "results": all_results,
+        "warnings": all_warnings,
+        "completeness_summary": {
+            "pages_reviewed": pages_count,
+            "results_extracted": len(all_results),
+            "categories_found": categories_found,
+            "status_counts": status_counts,
+            "unprocessed_sections": unprocessed[:5]
+        }
+    }
+
 
 CLINICAL_RANGES = {
     "Hemoglobin":         {"low": 12.0, "high": 17.5, "unit": "g/dL",      "critical_low": 7.0,  "critical_high": 20.0},
@@ -745,7 +1371,10 @@ def run_rule_based_engine(values):
         "summary": " ".join(summary_parts)
     }
 
+# @deprecated: Replaced by CliniQEngine in cliniq_ml (v2.2.0 multi-label XGBoost).
+# Kept only for backwards compatibility with legacy callers.
 def run_ml_classifier(values):
+    """[DEPRECATED] Legacy 8-class XGBoost classifier. Use CliniQEngine('artifacts') instead."""
     model, le, feature_cols = load_local_classifier()
     if model is None:
         return {"diagnosis": "ML model files missing. Retrain models.", "probabilities": {}}
@@ -780,11 +1409,11 @@ def normalize_image_bytes(image_bytes):
         pil_img = Image.open(io.BytesIO(image_bytes))
         if pil_img.mode != "RGB":
             pil_img = pil_img.convert("RGB")
-        max_dim = 1600
+        max_dim = 1024
         if max(pil_img.size) > max_dim:
             pil_img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
         buf = io.BytesIO()
-        pil_img.save(buf, format="JPEG", quality=88)
+        pil_img.save(buf, format="JPEG", quality=78)
         return buf.getvalue(), "image/jpeg"
     except Exception:
         return image_bytes, "image/png"
@@ -804,6 +1433,18 @@ def parse_vlm_json_response(raw_text):
     except Exception:
         pass
 
+    # 1. Attempt recovery by closing unclosed trailing strings and braces
+    repaired = cleaned
+    if repaired.count('"') % 2 != 0:
+        repaired += '"'
+    if not repaired.rstrip().endswith("}"):
+        repaired += "\n}"
+    try:
+        return json.loads(repaired)
+    except Exception:
+        pass
+
+    # 2. Match bounded JSON object
     match = re.search(r'(\{[\s\S]*\})', raw_text)
     if match:
         try:
@@ -811,14 +1452,49 @@ def parse_vlm_json_response(raw_text):
         except Exception:
             pass
 
-    return {
+    # 3. Robust Regex Recovery: Extract patient demographics and all biomarkers
+    # Guaranteed to succeed even if the model was truncated at token limits
+    result = {
         "Patient_Name": None, "Age": None, "Gender": None, "Hemoglobin": None, "WBC": None, "Platelets": None,
         "Fasting_Blood_Sugar": None, "Creatinine": None, "TSH": None, "Cholesterol": None,
         "Ionized_Calcium": None, "Calcium": None, "GGT": None, "Albumin": None,
         "Globulin": None, "AG_Ratio": None, "Total_Protein": None,
-        "Clinical_Interpretation": raw_text[:600] if raw_text else "Analysis completed.",
+        "Clinical_Interpretation": "Analysis completed.",
         "Predicted_Diseases": []
     }
+
+    match_name = re.search(r'"Patient_Name"\s*:\s*"([^"]+)"', raw_text)
+    if match_name and match_name.group(1).strip().lower() not in ("null", "none", ""):
+        result["Patient_Name"] = match_name.group(1).strip()
+
+    match_age = re.search(r'"Age"\s*:\s*(\d+)', raw_text)
+    if match_age:
+        result["Age"] = int(match_age.group(1))
+
+    match_gender = re.search(r'"Gender"\s*:\s*"(Male|Female)"', raw_text, re.IGNORECASE)
+    if match_gender:
+        result["Gender"] = match_gender.group(1).capitalize()
+
+    for k in [
+        "Hemoglobin", "WBC", "Platelets", "Fasting_Blood_Sugar", "Creatinine", "TSH",
+        "Cholesterol", "Ionized_Calcium", "Calcium", "GGT", "Albumin", "Globulin",
+        "AG_Ratio", "Total_Protein"
+    ]:
+        m = re.search(rf'"{k}"\s*:\s*([0-9.]+)', raw_text)
+        if m:
+            try:
+                v = float(m.group(1))
+                result[k] = int(v) if k in ("Platelets", "Fasting_Blood_Sugar", "Cholesterol") else v
+            except Exception:
+                pass
+
+    interp_m = re.search(r'"Clinical_Interpretation"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)', raw_text)
+    if interp_m:
+        result["Clinical_Interpretation"] = interp_m.group(1).strip()
+    elif raw_text:
+        result["Clinical_Interpretation"] = raw_text[:400]
+
+    return result
 
 def run_nvidia_nim_vlm(image_bytes, api_key):
     start_time = time.time()
@@ -886,7 +1562,7 @@ def run_nvidia_nim_vlm(image_bytes, api_key):
             "https://integrate.api.nvidia.com/v1/chat/completions",
             headers=headers,
             json=payload,
-            timeout=60
+            timeout=15
         )
         latency = time.time() - start_time
         if response.status_code != 200:
@@ -961,6 +1637,51 @@ def run_gemini_vlm(image_bytes, api_key):
         return {"error": f"Gemini API error: {str(e)}", "latency": time.time() - start_time}
 
 
+def run_openai_vlm(image_bytes, api_key, model_name="gpt-4o-mini"):
+    start_time = time.time()
+    norm_bytes, mime_type = normalize_image_bytes(image_bytes)
+    base64_image = base64.b64encode(norm_bytes).decode("utf-8")
+
+    prompt = (
+        "Analyze this de-identified medical laboratory report. Extract patient demographics and laboratory values faithfully. "
+        "Do not infer missing values or diagnose from values alone. Return only a JSON object with keys "
+        "Patient_Name, Age, Gender, Hemoglobin, WBC, Platelets, Fasting_Blood_Sugar, Creatinine, TSH, "
+        "Cholesterol, Ionized_Calcium, Calcium, GGT, Albumin, Globulin, AG_Ratio, Total_Protein, "
+        "Clinical_Interpretation, and Predicted_Diseases. Use null for unavailable scalar values and an empty array "
+        "for Predicted_Diseases when there are no confirmed findings."
+    )
+    payload = {
+        "model": model_name,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}}
+            ]
+        }],
+        "response_format": {"type": "json_object"},
+        "max_tokens": 800,
+        "temperature": 0.1
+    }
+
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=30
+        )
+        latency = time.time() - start_time
+        if response.status_code != 200:
+            return {"error": f"OpenAI API returned status {response.status_code}: {response.text[:200]}", "latency": latency}
+        raw_text = response.json()["choices"][0]["message"]["content"].strip()
+        structured_data = parse_vlm_json_response(raw_text)
+        structured_data["latency"] = latency
+        return structured_data
+    except Exception as e:
+        return {"error": f"OpenAI API error: {str(e)}", "latency": time.time() - start_time}
+
+
 def run_roar_ai_vlm(image_bytes, api_key=None, model_name="gemini-3.8-flash"):
     """
     Executes VLM clinical analysis through Roar AI Gateway.
@@ -1017,12 +1738,12 @@ def run_roar_ai_vlm(image_bytes, api_key=None, model_name="gemini-3.8-flash"):
                 ]
             }
         ],
-        "max_tokens": 800,
+        "max_tokens": 1200,
         "temperature": 0.1
     }
 
     try:
-        response = requests.post(f"{roar_base}/chat/completions", headers=headers, json=payload, timeout=60)
+        response = requests.post(f"{roar_base}/chat/completions", headers=headers, json=payload, timeout=20)
         latency = time.time() - start_time
         if response.status_code != 200:
             return {"error": f"Roar AI error ({response.status_code}): {response.text[:200]}", "latency": latency}

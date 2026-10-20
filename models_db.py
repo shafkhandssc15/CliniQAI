@@ -40,10 +40,6 @@ class Doctor(Base):
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     approved_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
-    # API keys (stored per-doctor, encrypted in production — plaintext for dev)
-    gemini_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
-    nvidia_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
-
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -109,3 +105,21 @@ class PatientReport(Base):
 
     processing_time_sec: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+
+class ConditionFeedback(Base):
+    """Stores physician sign-off feedback per condition to build the site recalibration dataset."""
+    __tablename__ = "condition_feedback"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    report_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    patient_ref: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    doctor_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    condition_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    model_decision: Mapped[str] = mapped_column(String(20), nullable=False)
+    model_probability: Mapped[float | None] = mapped_column(Float, nullable=True)
+    physician_decision: Mapped[str] = mapped_column(String(20), nullable=False)
+    final_label: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1 = Positive, 0 = Negative, None = Unlabeled
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+

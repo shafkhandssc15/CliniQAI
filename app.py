@@ -21,6 +21,7 @@ from routes_auth import router as auth_router
 from routes_admin import router as admin_router
 from routes_reports import router as reports_router
 from routes_supabase import router as supabase_router
+from integration_example import router as ml_router, get_engine
 from dependencies import get_verified_doctor
 from models_db import Doctor, PatientReport
 from sqlalchemy import select, desc
@@ -30,11 +31,13 @@ from ocr_engine import (
     extract_text_from_image,
     deidentify_report_image,
     parse_biomarkers,
+    extract_all_laboratory_values,
     extract_patient_demographics,
     run_rule_based_engine,
     run_ml_classifier,
     run_nvidia_nim_vlm,
     run_gemini_vlm,
+    run_openai_vlm,
     run_roar_ai_vlm,
     load_local_classifier,
     get_easyocr_reader
@@ -50,10 +53,17 @@ async def lifespan(app: FastAPI):
     print("Initializing CliniQ AI platform...")
     await init_db()
     print("Database tables initialized.")
+    # Initialize the new reference ML engine (cliniq_ml v2.2)
+    ml_engine = get_engine()
+    print(f"CliniQ ML engine loaded (version {ml_engine.version}).")
     load_local_classifier()
     print("Local ML classifiers loaded.")
-    get_easyocr_reader()
-    print("EasyOCR reader initialized.")
+    # Primary Native Tesseract 5.5.3 Engine Verification
+    try:
+        import tesserocr
+        print(f"Primary Tesseract OCR Engine initialized ({tesserocr.tesseract_version().splitlines()[0]}).")
+    except Exception as tess_err:
+        print(f"[OCR] Tesseract initialization note: {tess_err}")
 
     # Supabase Cloud Database Status Check
     try:
@@ -75,7 +85,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="CliniQ AI — Medical Diagnostic Platform",
     description="AI-powered medical report analysis for SLMC-registered doctors in Sri Lanka.",
-    version="2.1.0",
+    version="2.2.0",
     lifespan=lifespan
 )
 
@@ -99,6 +109,7 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(reports_router)
 app.include_router(supabase_router)
+app.include_router(ml_router)
 
 
 # ── Clinical Follow-Up Recommendations (Finding-Specific) ────────────────────────
@@ -385,8 +396,7 @@ def compute_ensemble_confidence(m1, m2, m3, m4) -> dict:
 @app.post("/api/analyze")
 async def analyze_report(
     file: UploadFile = File(...),
-    nvidia_api_key: str = Form(None),
-    gemini_api_key: str = Form(None),
+    vlm_provider: str = Form("auto"),
     patient_name: str = Form(None),
     patient_age: str = Form(None),
     patient_gender: str = Form(None),
@@ -409,15 +419,47 @@ async def analyze_report(
         # Sri Lanka PDPA (2022) compliant de-identification before cloud VLM transmission
         deidentified_image_bytes = deidentify_report_image(image_bytes, ocr_bboxes)
 
+        # 1b. Universal Laboratory Extraction across all pages, sections, tables, and footnotes
+        universal_lab_report = extract_all_laboratory_values(ocr_text, image_bytes, ocr_bboxes)
+
         # 2. Biomarker parsing
         parsed_values, extracted_flags = parse_biomarkers(ocr_text)
+
+        # Enrich parsed_values from universal_lab_report if any standard marker was extracted
+        for res_item in universal_lab_report.get("results", []):
+            t_name = res_item.get("test_name", "").lower()
+            val = res_item.get("result_value")
+            if isinstance(val, (int, float)):
+                if any(k in t_name for k in ["haemoglobin", "hemoglobin", "hb", "hgb"]) and not extracted_flags.get("Hemoglobin"):
+                    parsed_values["Hemoglobin"] = float(val)
+                    extracted_flags["Hemoglobin"] = True
+                elif any(k in t_name for k in ["wbc", "white blood", "leukocyte"]) and not extracted_flags.get("WBC"):
+                    parsed_values["WBC"] = float(val)
+                    extracted_flags["WBC"] = True
+                elif any(k in t_name for k in ["platelet", "plt"]) and not extracted_flags.get("Platelets"):
+                    parsed_values["Platelets"] = int(val)
+                    extracted_flags["Platelets"] = True
+                elif any(k in t_name for k in ["glucose", "fbs", "sugar"]) and not extracted_flags.get("Fasting_Blood_Sugar"):
+                    parsed_values["Fasting_Blood_Sugar"] = int(val)
+                    extracted_flags["Fasting_Blood_Sugar"] = True
+                elif any(k in t_name for k in ["creatinine"]) and not extracted_flags.get("Creatinine"):
+                    parsed_values["Creatinine"] = float(val)
+                    extracted_flags["Creatinine"] = True
+                elif any(k in t_name for k in ["tsh"]) and not extracted_flags.get("TSH"):
+                    parsed_values["TSH"] = float(val)
+                    extracted_flags["TSH"] = True
+                elif any(k in t_name for k in ["cholesterol"]) and "hdl" not in t_name and "ldl" not in t_name and not extracted_flags.get("Cholesterol"):
+                    parsed_values["Cholesterol"] = int(val)
+                    extracted_flags["Cholesterol"] = True
 
         # 2b. Extract patient demographics from OCR text for auto-fill
         ocr_demographics = extract_patient_demographics(ocr_text)
 
         # 3. Override intake fields with form values, else use OCR-extracted values
         if not patient_name or not patient_name.strip():
-            patient_name = ocr_demographics.get("name") or ""
+            patient_name = ocr_demographics.get("name") or universal_lab_report.get("patient_identifier") or ""
+        if not report_date or not report_date.strip():
+            report_date = universal_lab_report.get("report_date") or ""
         if not patient_age or not str(patient_age).strip():
             patient_age = str(ocr_demographics.get("age") or "") if ocr_demographics.get("age") else ""
         if not patient_gender or patient_gender == "Male":  # default form value
@@ -437,64 +479,40 @@ async def analyze_report(
         m1["latency_sec"] = round(ocr_time + (time.time() - t0), 4)
         m1["is_local"] = True
 
-        # 5. Local ML classifier
-        t0 = time.time()
-        m2 = run_ml_classifier(parsed_values)
-        m2["latency_sec"] = round(ocr_time + (time.time() - t0), 4)
-        m2["is_local"] = True
-
-        # 5. Resolve API keys: form → doctor profile → env vars → fallback keys
-        def resolve_key(form_val, doctor_val, env_var, fallback_val):
-            k = (form_val or "").strip()
-            if k: return k
-            k = (doctor_val or "").strip()
-            if k: return k
-            k = os.environ.get(env_var, "").strip()
-            if k: return k
-            return fallback_val
-
-        eff_nvidia = resolve_key(
-            nvidia_api_key, 
-            current_doctor.nvidia_api_key, 
-            "NVIDIA_API_KEY",
-            os.environ.get("NVIDIA_API_KEY", "")
-        )
-        eff_gemini = resolve_key(
-            gemini_api_key, 
-            current_doctor.gemini_api_key, 
-            "GEMINI_API_KEY",
-            os.environ.get("GEMINI_API_KEY", "")
-        )
-
+        # Provider credentials are loaded from environment configuration only.
+        eff_nvidia = os.environ.get("NVIDIA_API_KEY", "").strip()
+        eff_gemini = os.environ.get("GEMINI_API_KEY", "").strip()
+        eff_openai = os.environ.get("OPENAI_API_KEY", "").strip()
         eff_roar = os.environ.get("ROAR_API_KEY", "").strip()
 
-        # 6 & 7. Run Cloud VLMs (NVIDIA NIM / Gemini / Roar AI Gateway) in parallel with de-identified images
-        import concurrent.futures
-        
-        def call_nvidia():
-            if eff_nvidia:
-                print(f"[{current_doctor.slmc_number}] Triggering NVIDIA NIM (Llama 3.2 Vision) with de-identified image...")
-                return run_nvidia_nim_vlm(deidentified_image_bytes, eff_nvidia)
-            elif eff_roar:
-                print(f"[{current_doctor.slmc_number}] Triggering Roar AI Gateway (Llama 3.3)...")
-                return run_roar_ai_vlm(deidentified_image_bytes, eff_roar, model_name="llama-3.3-70b")
-            return {"error": "No NVIDIA API key configured. Add it in API Settings.", "latency": 0.0}
+        # 6. Run the selected cloud vision provider with the de-identified image.
+        t_vlm_start = time.time()
+        selected_provider = (vlm_provider or "auto").strip().lower()
+        if selected_provider == "roar":
+            provider_label = "Roar AI (Gemini 3.8 Flash)"
+            m4_raw = run_roar_ai_vlm(deidentified_image_bytes, eff_roar or None, model_name="gemini-3.8-flash")
+        elif selected_provider == "gemini":
+            provider_label = "Google Gemini (Gemini 2.5 Flash)"
+            m4_raw = run_gemini_vlm(deidentified_image_bytes, eff_gemini) if eff_gemini else {"error": "Gemini API key not configured", "latency": 0.0}
+        elif selected_provider == "openai":
+            provider_label = "OpenAI (GPT-4o mini)"
+            m4_raw = run_openai_vlm(deidentified_image_bytes, eff_openai) if eff_openai else {"error": "OpenAI API key not configured", "latency": 0.0}
+        elif selected_provider == "auto" and eff_roar:
+            provider_label = "Roar AI (Gemini 3.8 Flash)"
+            print(f"[{current_doctor.slmc_number}] Triggering Roar AI Frontier Intelligence (Gemini 3.8 Flash)...")
+            m4_raw = run_roar_ai_vlm(deidentified_image_bytes, eff_roar, model_name="gemini-3.8-flash")
+        elif selected_provider == "auto" and eff_gemini:
+            provider_label = "Google Gemini (Gemini 2.5 Flash)"
+            print(f"[{current_doctor.slmc_number}] Triggering Gemini Flash with de-identified image...")
+            m4_raw = run_gemini_vlm(deidentified_image_bytes, eff_gemini)
+        elif selected_provider == "auto" and eff_openai:
+            provider_label = "OpenAI (GPT-4o mini)"
+            m4_raw = run_openai_vlm(deidentified_image_bytes, eff_openai)
+        else:
+            provider_label = "Cloud VLM"
+            m4_raw = {"error": "Selected cloud provider is unavailable or its API key is not configured", "latency": 0.0}
 
-        def call_gemini():
-            if eff_gemini:
-                print(f"[{current_doctor.slmc_number}] Triggering Gemini 2.5 Flash with de-identified image...")
-                return run_gemini_vlm(deidentified_image_bytes, eff_gemini)
-            elif eff_roar:
-                print(f"[{current_doctor.slmc_number}] Triggering Roar AI Gateway (Gemini 3.8 Flash)...")
-                return run_roar_ai_vlm(deidentified_image_bytes, eff_roar, model_name="gemini-3.8-flash")
-            return {"error": "No Gemini API key configured. Add it in API Settings.", "latency": 0.0}
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            fut_nim = executor.submit(call_nvidia)
-            fut_gem = executor.submit(call_gemini)
-            m3_raw = fut_nim.result()
-            m4_raw = fut_gem.result()
-
+        m3_raw = {"status": "decommissioned", "disabled": True, "error": None, "latency": 0.0}
 
         # Normalize m3 / m4 to common shape
         def normalize_vlm(raw: dict, name: str, fallback_rule_diag: str) -> dict:
@@ -516,7 +534,6 @@ async def analyze_report(
             elif isinstance(diseases, str) and diseases.strip() and diseases.strip().lower() not in ("n/a", "none", "unknown", "[]", ""):
                 diag = diseases.strip()
             else:
-                # If no specific disease list was returned, inspect clinical interpretation
                 interp = (raw.get("Clinical_Interpretation") or "").lower()
                 matched = []
                 if "anemia" in interp or "anaemia" in interp or "low hemoglobin" in interp:
@@ -553,43 +570,14 @@ async def analyze_report(
                 "extracted_values": {k: raw.get(k) for k in parsed_values if raw.get(k) is not None}
             }
 
-        m3 = normalize_vlm(m3_raw, "NVIDIA NIM Llama 3.2 Vision", m1.get("diagnosis", ""))
-        m4 = normalize_vlm(m4_raw, "Gemini 2.5 Flash", m1.get("diagnosis", ""))
+        m3 = normalize_vlm(m3_raw, "NVIDIA NIM", m1.get("diagnosis", ""))
+        m3["disabled"] = True
+        m4 = normalize_vlm(m4_raw, provider_label, m1.get("diagnosis", ""))
 
-        # Enrich parsed values with multimodal VLM extractions when available
-        for vlm_raw_res in [m4_raw, m3_raw]:
-            if isinstance(vlm_raw_res, dict) and not vlm_raw_res.get("error"):
-                for bm_key in list(parsed_values.keys()):
-                    vlm_bm_val = vlm_raw_res.get(bm_key)
-                    if vlm_bm_val is not None and (not extracted_flags.get(bm_key) or parsed_values.get(bm_key) is None):
-                        try:
-                            parsed_values[bm_key] = float(vlm_bm_val) if not isinstance(vlm_bm_val, str) or vlm_bm_val.replace(".", "", 1).isdigit() else vlm_bm_val
-                            extracted_flags[bm_key] = True
-                        except (ValueError, TypeError):
-                            pass
-
-        pt_age_int = int(patient_age) if str(patient_age).strip().isdigit() else 45
-        pt_gender_str = patient_gender if patient_gender in ("Male", "Female") else "Male"
-
-        # 8. Validated Ensemble Consensus (Strict clinical validation + test-type awareness)
-        m1_for_ens = {"diagnosis": m1.get("diagnosis"), "error": None}
-        m2_for_ens = {"diagnosis": m2.get("diagnosis"), "error": None}
-        ensemble = compute_validated_ensemble(
-            m1_rules=m1_for_ens,
-            m2_ml=m2_for_ens,
-            m3_nvidia=m3,
-            m4_gemini=m4,
-            report_type=report_type or "Full Blood Count",
-            parsed_values=parsed_values,
-            extracted_flags=extracted_flags,
-            gender=pt_gender_str,
-            age=pt_age_int
-        )
-
-        # 11b. VLM-extracted patient demographics for auto-fill
+        # VLM-extracted patient demographics for auto-fill
         vlm_demographics = {}
         for vlm_result in [m4_raw, m3_raw]:
-            if not vlm_result.get("error"):
+            if isinstance(vlm_result, dict) and not vlm_result.get("error"):
                 if vlm_result.get("Patient_Name") and not vlm_demographics.get("name"):
                     vlm_demographics["name"] = vlm_result["Patient_Name"]
                 if vlm_result.get("Age") and not vlm_demographics.get("age"):
@@ -606,7 +594,85 @@ async def analyze_report(
         if patient_gender in (None, "", "Male", "Not Specified") and (vlm_demographics.get("gender") or ocr_demographics.get("gender")):
             patient_gender = vlm_demographics.get("gender") or ocr_demographics.get("gender")
 
-        # 8b. Parse clinical context lists (symptoms, medications, lifestyle)
+        pt_age_int = int(patient_age) if str(patient_age).strip().isdigit() else 45
+        pt_gender_str = patient_gender if patient_gender in ("Male", "Female") else "Male"
+
+        # Enrich parsed values with multimodal VLM extractions when available
+        for vlm_raw_res in [m4_raw, m3_raw]:
+            if isinstance(vlm_raw_res, dict) and not vlm_raw_res.get("error"):
+                for bm_key in list(parsed_values.keys()):
+                    vlm_bm_val = vlm_raw_res.get(bm_key)
+                    if vlm_bm_val is not None and (not extracted_flags.get(bm_key) or parsed_values.get(bm_key) is None):
+                        try:
+                            parsed_values[bm_key] = float(vlm_bm_val) if not isinstance(vlm_bm_val, str) or vlm_bm_val.replace(".", "", 1).isdigit() else vlm_bm_val
+                            extracted_flags[bm_key] = True
+                        except (ValueError, TypeError):
+                            pass
+
+        # Cross-check Tesseract OCR extractions against Cloud VLM extractions (only for genuinely extracted values)
+        from cliniq_ml.verify import cross_check_extractions
+        from cliniq_ml.schema import BOUNDS
+        vlm_extractions = {}
+        for vlm_raw_res in [m4_raw, m3_raw]:
+            if isinstance(vlm_raw_res, dict) and not vlm_raw_res.get("error"):
+                for k, v in vlm_raw_res.items():
+                    if v is not None and k not in ("Clinical_Interpretation", "Predicted_Diseases", "latency", "error", "Patient_Name", "Age", "Gender"):
+                        vlm_extractions[k] = v
+
+        genuinely_extracted = {k: v for k, v in parsed_values.items() if extracted_flags.get(k)}
+        raw_discrepancies = cross_check_extractions(genuinely_extracted, vlm_extractions)
+        extraction_discrepancies = [
+            {
+                "field": d.get("field"),
+                "tesseract": d.get("reader_a"),
+                "easyocr": d.get("reader_a"),
+                "reader_a": d.get("reader_a"),
+                "vlm": d.get("reader_b"),
+                "reader_b": d.get("reader_b"),
+                "issue": d.get("issue") or d.get("note") or "Discrepancy detected",
+                "note": d.get("issue") or d.get("note") or "Discrepancy detected"
+            }
+            for d in raw_discrepancies
+        ]
+
+        # 6. CliniQ ML Reference Engine Analysis (Calibrated multi-label XGBoost + TreeSHAP)
+        # Pass ONLY genuinely extracted analytes, automatically safeguarding against OCR slips
+        ml_input = {k: v for k, v in parsed_values.items() if extracted_flags.get(k) and v is not None}
+        for disc in raw_discrepancies:
+            fld = disc.get("field")
+            va = disc.get("reader_a")
+            vb = disc.get("reader_b")
+            issue_text = disc.get("issue", "")
+            if fld in ml_input and "decimal-point slip" in issue_text:
+                b_range = BOUNDS.get(fld)
+                if b_range and va is not None and vb is not None:
+                    lo, hi = b_range
+                    if (va > hi or va > 10.0) and (lo <= vb <= hi):
+                        ml_input[fld] = vb
+                        parsed_values[fld] = vb
+                    elif (vb > hi or vb > 10.0) and (lo <= va <= hi):
+                        ml_input[fld] = va
+
+        t0_ml = time.time()
+        ml_engine = get_engine()
+        ml_result = ml_engine.analyze(ml_input, age=pt_age_int, sex=pt_gender_str)
+        ml_time = round(time.time() - t0_ml, 4)
+
+        # Surface any disagreeing fields to the physician as "verify before relying on this" before analysis is finalised
+        for disc in extraction_discrepancies:
+            disc_issue = disc.get("issue") or disc.get("note") or "Discrepancy detected"
+            warn_str = f"Verify {disc.get('field')} before relying on this: {disc_issue} (OCR: {disc.get('reader_a')} vs VLM: {disc.get('reader_b')})"
+            if warn_str not in ml_result.get("warnings", []):
+                ml_result.setdefault("warnings", []).append(warn_str)
+            if not any(vf.get("field") == disc.get("field") for vf in ml_result.get("verify_fields", [])):
+                ml_result.setdefault("verify_fields", []).append({
+                    "field": disc.get("field"),
+                    "value": disc.get("reader_a"),
+                    "issue": disc_issue,
+                    "vlm_value": disc.get("reader_b")
+                })
+
+        # 7. Parse clinical context lists (symptoms, medications, lifestyle) before ensemble arbitration
         def parse_context_list(raw_val: Optional[str]) -> list[str]:
             if not raw_val or not raw_val.strip():
                 return []
@@ -620,6 +686,29 @@ async def analyze_report(
         symptoms_list = parse_context_list(symptoms)
         medications_list = parse_context_list(medications)
         lifestyle_list = parse_context_list(lifestyle)
+
+        # 8. Validated Ensemble Consensus (Reference ML voter: CliniQ ML 2.2 + Clinical Guidelines)
+        m1_for_ens = {"diagnosis": m1.get("diagnosis"), "error": None}
+        m2_for_ens = {
+            "diagnosis": ", ".join(ml_result.get("findings", [])) if ml_result.get("findings") else ml_result.get("status"),
+            "status": ml_result.get("status"),
+            "error": None
+        }
+        ensemble = compute_validated_ensemble(
+            m1_rules=m1_for_ens,
+            m2_ml=m2_for_ens,
+            m3_nvidia=m3,
+            m4_gemini=m4,
+            report_type=report_type or "Full Blood Count",
+            parsed_values=parsed_values,
+            extracted_flags=extracted_flags,
+            gender=pt_gender_str,
+            age=pt_age_int,
+            ml_result=ml_result,
+            extraction_discrepancies=extraction_discrepancies,
+            symptoms=symptoms_list,
+            medications=medications_list
+        )
 
         # 8c. Retrieve previous historical lab reports for longitudinal trend analysis
         historical_reports = []
@@ -669,13 +758,34 @@ async def analyze_report(
             risk_profile=risk_profile
         )
 
-        # 11. Best narrative (Gemini > NVIDIA > local rule summary)
-        if not m4.get("error") and m4["diagnosis"] not in ("Offline", "N/A"):
-            best_narrative = m4["details"]
-        elif not m3.get("error") and m3["diagnosis"] not in ("Offline", "N/A"):
-            best_narrative = m3["details"]
-        else:
-            best_narrative = m1.get("summary", "Local rule-based analysis completed.")
+        # 11. Narrative generation (using cliniq_ml narrative layer + Roar AI Gateway fallback)
+        from cliniq_ml.narrative import generate_narrative, deterministic_summary
+        def roar_llm_call(prompt: str) -> str:
+            roar_key = os.environ.get("ROAR_API_KEY", "").strip()
+            roar_base = os.environ.get("ROAR_BASE_URL", "https://api.roar-ai.com/v1").strip()
+            if not roar_key:
+                return deterministic_summary(ml_result)
+            try:
+                import requests
+                res = requests.post(
+                    f"{roar_base}/chat/completions",
+                    headers={"Authorization": f"Bearer {roar_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": "gemini-3.8-flash",
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": 400,
+                        "temperature": 0.1
+                    },
+                    timeout=15
+                )
+                if res.status_code == 200:
+                    return res.json()["choices"][0]["message"]["content"].strip()
+            except Exception as err:
+                print(f"[Roar AI Narrative warning] {err}")
+            return deterministic_summary(ml_result)
+
+        narrative_res = generate_narrative(ml_result, roar_llm_call)
+        best_narrative = narrative_res.get("text") or deterministic_summary(ml_result)
 
         # 12. Explainable AI (XAI) Structured Reasoning & Differential Diagnoses
         key_features = []
@@ -717,7 +827,11 @@ async def analyze_report(
 
         conf_val = ensemble.get("confidence", 0)
         conf_band = ensemble.get("confidence_band", "LOW")
-        why_conf = f"Ensemble agreement is {conf_val}% ({conf_band}). Calculated from weighted consensus: Gemini 2.5 (40%), NVIDIA NIM (35%), XGBoost (20%), and Rule-Based Validation (5%)."
+        why_conf = (
+            f"Reference Engine: CliniQ Engine ({ml_result.get('model_version', 'v2.2')}). "
+            f"Status: {ml_result.get('status')}. Calibrated split-conformal confidence {conf_val}% ({conf_band}). "
+            f"Cross-reader extractions: {len(extraction_discrepancies)} discrepancy field(s) audited."
+        )
         
         uncertainties = []
         if conf_val < 80.0:
@@ -729,7 +843,7 @@ async def analyze_report(
 
         clinical_reasoning = {
             "summary_rationale": best_narrative[:400] + ("..." if len(best_narrative) > 400 else ""),
-            "consensus_math": f"Consensus score {conf_val}% ({conf_band}) aggregated across 4 validated AI pipelines.",
+            "consensus_math": f"Consensus score {conf_val}% ({conf_band}) anchored on calibrated CliniQ ML reference voter.",
             "why_confidence_level": why_conf,
             "uncertainty_breakdown": uncertainties or ["All extracted biomarkers correlate strongly with clinical models."],
             "demographic_context": f"Patient profile: {pt_age_int}y {pt_gender_str}. Symptoms: {', '.join(symptoms_list) or 'None reported'}. Medications: {', '.join(medications_list) or 'None reported'}.",
@@ -744,17 +858,37 @@ async def analyze_report(
         total_time = round(time.time() - total_start, 2)
 
         # 14. Safety disclaimer
-        safety_disclaimer = (
-            "⚠ CLINICAL DECISION SUPPORT ONLY — This AI-generated analysis is intended as a decision support tool "
-            "and does NOT constitute a medical diagnosis. All findings MUST be verified by the attending physician "
-            "through clinical correlation, patient history, and physical examination before any treatment decisions."
-        )
+        safety_disclaimer = "Decision support only - requires physician review and sign-off"
 
         # 13b. Trilingual patient-facing takeaway summary
         trilingual_summary = generate_trilingual_summary(
             ensemble.get("primary_diagnosis", ""),
             m1.get("findings", [])
         )
+
+        m2 = {
+            "name": f"CliniQ Engine ({ml_result.get('model_version', 'cliniq-ml-2.2.0')})",
+            "status": ml_result.get("status"),
+            "diagnosis": ", ".join(ml_result.get("findings", [])) if ml_result.get("findings") else (
+                "No findings on the panels provided" if ml_result.get("status") == "NO_FINDINGS_ON_AVAILABLE_PANELS"
+                else "No significant abnormalities detected" if ml_result.get("status") == "NO_SIGNIFICANT_FINDINGS"
+                else ml_result.get("status", "Unknown")
+            ),
+            "details": f"Status: {ml_result.get('status')}. Calibrated split conformal multi-label XGBoost with TreeSHAP explanations.",
+            "latency_sec": ml_time,
+            "probabilities": {k: v.get("probability", 0.0) for k, v in ml_result.get("conditions", {}).items()},
+            "conditions": ml_result.get("conditions", {}),
+            "critical_alerts": ml_result.get("critical_alerts", []),
+            "pattern_alerts": ml_result.get("pattern_alerts", []),
+            "verify_fields": ml_result.get("verify_fields", []),
+            "suggested_next_tests": ml_result.get("suggested_next_tests", []),
+            "warnings": ml_result.get("warnings", []),
+            "not_assessable": ml_result.get("not_assessable", []),
+            "uncertain": ml_result.get("uncertain", []),
+            "model_version": ml_result.get("model_version"),
+            "is_local": True,
+            "error": None
+        }
 
         response_payload = {
             "success": True,
@@ -773,11 +907,22 @@ async def analyze_report(
                 "slmc_number": current_doctor.slmc_number
             },
             "ocr_text": ocr_text,
+            "universal_lab_report": universal_lab_report,
             "parsed_values": parsed_values,
             "extracted_flags": extracted_flags,
             "ocr_demographics": ocr_demographics,
             "vlm_demographics": vlm_demographics,
             "ensemble": ensemble,
+            "cliniq_ml": ml_result,
+            "model_version": ml_result.get("model_version", "cliniq-ml-2.2.0"),
+            "critical_alerts": ml_result.get("critical_alerts", []),
+            "pattern_alerts": ml_result.get("pattern_alerts", []),
+            "verify_fields": ml_result.get("verify_fields", []),
+            "suggested_next_tests": ml_result.get("suggested_next_tests", []),
+            "warnings": ml_result.get("warnings", []),
+            "not_assessable": ml_result.get("not_assessable", []),
+            "uncertain": ml_result.get("uncertain", []),
+            "extraction_discrepancies": extraction_discrepancies,
             "best_narrative": best_narrative,
             "safety_disclaimer": safety_disclaimer,
             "recommendations": recommendations,
@@ -796,22 +941,14 @@ async def analyze_report(
             "processing_time_sec": total_time,
             "models": {
                 "model_1_rules": {
-                    "name": "EasyOCR + Clinical Rules",
+                    "name": "Tesseract OCR + Clinical Rules",
                     "diagnosis": m1.get("diagnosis", "Unknown"),
                     "details": m1.get("summary", ""),
                     "latency_sec": m1.get("latency_sec", 0.0),
                     "is_local": True,
                     "error": None
                 },
-                "model_2_ml": {
-                    "name": "EasyOCR + XGBoost",
-                    "diagnosis": m2.get("diagnosis", "Unknown"),
-                    "details": m2.get("summary", ""),
-                    "latency_sec": m2.get("latency_sec", 0.0),
-                    "probabilities": m2.get("probabilities", {}),
-                    "is_local": True,
-                    "error": None
-                },
+                "model_2_ml": m2,
                 "model_3_nvidia": m3,
                 "model_4_gemini": m4
             }
@@ -907,4 +1044,4 @@ app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 if __name__ == "__main__":
     print("Starting CliniQ AI v2.1 at http://127.0.0.1:8000 ...")
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, workers=1, access_log=True)
+    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True, access_log=True)

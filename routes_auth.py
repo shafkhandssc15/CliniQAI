@@ -58,11 +58,6 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class UpdateKeysRequest(BaseModel):
-    gemini_api_key: str = ""
-    nvidia_api_key: str = ""
-
-
 # ── Helpers ──────────────────────────────────────────────────────────────────────
 
 async def log_event(db: AsyncSession, event_type: str, actor_id: str = None,
@@ -143,10 +138,6 @@ async def register(body: RegisterRequest, request: Request, db: AsyncSession = D
     if existing.scalar_one_or_none():
         raise HTTPException(409, detail={"code": "REG_005", "message": "This NIC is already associated with an account."})
 
-    # Create doctor record with environment or empty API keys (customizable in settings)
-    DEFAULT_GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-    DEFAULT_NVIDIA_KEY = os.environ.get("NVIDIA_API_KEY", "")
-
     verify_token = create_email_verify_token()
     doctor = Doctor(
         full_name=body.full_name.strip(),
@@ -156,9 +147,7 @@ async def register(body: RegisterRequest, request: Request, db: AsyncSession = D
         nic=nic_result["normalized"],
         password_hash=hash_password(body.password),
         email_verify_token=verify_token,
-        status="PENDING_EMAIL_VERIFICATION",
-        gemini_api_key=DEFAULT_GEMINI_KEY,
-        nvidia_api_key=DEFAULT_NVIDIA_KEY
+        status="PENDING_EMAIL_VERIFICATION"
     )
     db.add(doctor)
     await db.commit()
@@ -338,9 +327,6 @@ async def logout(request: Request, doctor: Doctor = Depends(get_current_doctor),
 @router.get("/me")
 async def get_me(doctor: Doctor = Depends(get_current_doctor)):
     """Return the current authenticated doctor's profile."""
-    DEFAULT_GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-    DEFAULT_NVIDIA_KEY = os.environ.get("NVIDIA_API_KEY", "")
-    
     return {
         "id": doctor.id,
         "full_name": doctor.full_name,
@@ -349,20 +335,5 @@ async def get_me(doctor: Doctor = Depends(get_current_doctor)):
         "phone": doctor.phone,
         "nic": doctor.nic,
         "role": doctor.role,
-        "status": doctor.status,
-        "gemini_api_key": doctor.gemini_api_key or DEFAULT_GEMINI_KEY,
-        "nvidia_api_key": doctor.nvidia_api_key or DEFAULT_NVIDIA_KEY,
-        "has_gemini_key": bool(doctor.gemini_api_key or DEFAULT_GEMINI_KEY),
-        "has_nvidia_key": bool(doctor.nvidia_api_key or DEFAULT_NVIDIA_KEY)
+        "status": doctor.status
     }
-
-
-@router.post("/update-keys")
-async def update_api_keys(body: UpdateKeysRequest,
-                          doctor: Doctor = Depends(get_verified_doctor),
-                          db: AsyncSession = Depends(get_db)):
-    """Store or update the doctor's NVIDIA and Gemini API keys."""
-    doctor.gemini_api_key = body.gemini_api_key.strip() or None
-    doctor.nvidia_api_key = body.nvidia_api_key.strip() or None
-    await db.commit()
-    return {"success": True, "message": "API keys updated successfully."}

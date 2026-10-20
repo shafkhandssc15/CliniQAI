@@ -94,9 +94,28 @@ async def seed_default_accounts():
 
 async def init_db():
     """Create all tables on startup and seed default accounts."""
-    from models_db import Doctor, AuthSession, AuditLog  # noqa — import triggers registration
+    from models_db import Doctor, AuthSession, AuditLog, PatientReport, ConditionFeedback  # noqa — import triggers registration
+    from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # SQLite schema auto-migration safeguards
+        for col_def in [
+            "ALTER TABLE audit_log ADD COLUMN prev_hash VARCHAR(64)",
+            "ALTER TABLE audit_log ADD COLUMN row_hash VARCHAR(64)"
+        ]:
+            try:
+                await conn.execute(text(col_def))
+            except Exception:
+                pass
+        for key_column in ("gemini_api_key", "nvidia_api_key", "openai_api_key"):
+            try:
+                await conn.execute(text(f"UPDATE doctors SET {key_column} = NULL"))
+            except Exception:
+                pass
+            try:
+                await conn.execute(text(f"ALTER TABLE doctors DROP COLUMN {key_column}"))
+            except Exception:
+                pass
     await seed_default_accounts()
 
 
