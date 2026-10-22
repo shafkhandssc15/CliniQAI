@@ -2203,8 +2203,13 @@ function initSupabaseSync() {
                 method: "POST",
                 headers: { "Authorization": `Bearer ${AUTH_TOKEN}` }
             });
-            const d = await res.json();
-            if (res.ok && d.success) {
+            let d;
+            try {
+                d = await res.json();
+            } catch {
+                d = { detail: `Connection error (${res.status}): Supabase endpoint unreachable or credentials need updating.` };
+            }
+            if (res.ok && d && d.success) {
                 resultsEl.innerHTML = `
                     <div style="color: #4ade80; background: rgba(34,197,94,0.15); padding: 0.75rem; border-radius: 6px; border: 1px solid rgba(34,197,94,0.3);">
                         <strong>✅ ${d.message}</strong> (${d.synced} synced, ${d.failed} failed)
@@ -2213,7 +2218,7 @@ function initSupabaseSync() {
             } else {
                 resultsEl.innerHTML = `
                     <div style="color: #f87171; background: rgba(239,68,68,0.15); padding: 0.75rem; border-radius: 6px;">
-                        <strong>⚠️ Sync Notice:</strong> ${d.detail || d.message || "Failed to sync"}
+                        <strong>⚠️ Sync Notice:</strong> ${d?.detail || d?.message || "Failed to sync with Supabase cloud. Check project credentials in API settings."}
                     </div>`;
             }
         } catch (err) {

@@ -59,7 +59,7 @@ async def sync_all_reports(
     conn_info = await test_connection()
     if not conn_info.get("reachable"):
         raise HTTPException(
-            status_code=502,
+            status_code=400,
             detail=f"Cannot reach Supabase: {conn_info.get('message') or conn_info.get('error')}"
         )
     if not conn_info.get("table_ready"):
