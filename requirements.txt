@@ -20,3 +20,4 @@ playwright>=1.40.0
 python-dotenv>=1.0.0
 pytesseract>=0.3.10
 pypdf>=3.0.0
+email-validator>=2.0.0
