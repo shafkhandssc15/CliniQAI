@@ -93,6 +93,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const hdr = document.getElementById("header-doctor-name");
         if (hdr) { hdr.textContent = `Dr. ${cleanDocName}`; hdr.style.display = "flex"; }
         setText("review-sig-name", `Dr. ${cleanDocName} · ${DOCTOR_INFO.slmc_number}`);
+
+        // If logged in as Administrator, unlock Admin Doctor Approvals tab and portal link
+        if (DOCTOR_INFO.role === "ADMIN") {
+            const adminNav = document.getElementById("nav-item-admin");
+            if (adminNav) adminNav.style.display = "flex";
+            const headerAdmin = document.getElementById("header-admin-badge");
+            if (headerAdmin) headerAdmin.style.display = "inline-flex";
+            initAdminApprovals();
+        }
     }
 
 
@@ -170,7 +179,8 @@ const TAB_META = {
     biomarkers:  { title: "Biomarker Profile",     subtitle: "Individual parameters mapped against clinical reference ranges" },
     comparison:  { title: "Model Output Comparison",subtitle: "Side-by-side results from all four AI engines" },
     benchmarks:  { title: "Classifier Metrics",    subtitle: "Training performance across 3,000 augmented clinical records" },
-    settings:    { title: "API Settings",          subtitle: "Configure cloud vision providers and API keys" }
+    settings:    { title: "API Settings",          subtitle: "Configure cloud vision providers and API keys" },
+    admin:       { title: "Doctor Access & Approvals", subtitle: "Review registrations, verify SLMC practitioners, and manage doctor credentials" }
 };
 
 function initTabs() {
@@ -221,6 +231,9 @@ function switchTab(tabName) {
         }
     } else if (tabName === "settings") {
         initSupabaseSync();
+    } else if (tabName === "admin") {
+        loadAdminStats();
+        loadAdminRegistrations();
     }
 }
 
@@ -2575,4 +2588,208 @@ function initReportModalEvents() {
     window.addEventListener("keydown", e => {
         if (e.key === "Escape") closeReportModal();
     });
+}
+
+// ── Admin Doctor Approvals Controller ────────────────────────────────
+let currentAdminStatusFilter = "PENDING_ADMIN_APPROVAL";
+
+async function initAdminApprovals() {
+    await loadAdminStats();
+    await loadAdminRegistrations("PENDING_ADMIN_APPROVAL");
+}
+
+function setAdminFilter(status, btn) {
+    currentAdminStatusFilter = status;
+    document.querySelectorAll(".adm-filter-btn").forEach(b => {
+        b.style.background = "transparent";
+        b.style.color = "#94a3b8";
+        b.style.fontWeight = "500";
+    });
+    if (btn) {
+        btn.style.background = "var(--accent)";
+        btn.style.color = "#050d1a";
+        btn.style.fontWeight = "700";
+    }
+    loadAdminRegistrations(status);
+}
+
+async function loadAdminStats() {
+    if (!AUTH_TOKEN) return;
+    const statuses = ["PENDING_ADMIN_APPROVAL", "VERIFIED", "REJECTED"];
+    const counts = { "PENDING_ADMIN_APPROVAL": 0, "VERIFIED": 0, "REJECTED": 0 };
+    for (const s of statuses) {
+        try {
+            const r = await fetch(`/api/admin/registrations?status=${s}`, {
+                headers: { "Authorization": `Bearer ${AUTH_TOKEN}` }
+            });
+            const d = await r.json();
+            counts[s] = d.count || 0;
+        } catch {}
+    }
+    const pendingCount = counts["PENDING_ADMIN_APPROVAL"] || 0;
+    setText("adm-stat-pending", pendingCount);
+    setText("adm-stat-verified", counts["VERIFIED"] || 0);
+    setText("adm-stat-rejected", counts["REJECTED"] || 0);
+    setText("adm-stat-total", Object.values(counts).reduce((a, b) => a + b, 0));
+
+    const badge = document.getElementById("admin-pending-badge");
+    if (badge) {
+        badge.textContent = pendingCount;
+        badge.style.display = pendingCount > 0 ? "inline-block" : "none";
+    }
+}
+
+async function loadAdminRegistrations(status = currentAdminStatusFilter) {
+    const tbody = document.getElementById("adm-registrations-tbody");
+    const countEl = document.getElementById("adm-queue-count");
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:32px; color:#94a3b8;"><span class="spinner"></span> Loading registrations...</td></tr>`;
+
+    try {
+        const res = await fetch(`/api/admin/registrations?status=${status}`, {
+            headers: { "Authorization": `Bearer ${AUTH_TOKEN}` }
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:#fca5a5;">Error: ${escapeHtml(data.detail || "Failed to load registrations")}</td></tr>`;
+            return;
+        }
+
+        const list = data.registrations || [];
+        if (countEl) countEl.textContent = `${list.length} doctor${list.length === 1 ? '' : 's'} in ${status.replace(/_/g, ' ').toLowerCase()}`;
+
+        if (list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:36px; color:#94a3b8;">
+                <div style="font-size:1.1rem; margin-bottom:4px;">✨ All caught up!</div>
+                <div style="font-size:0.8rem;">No doctor registrations found with status "${status.replace(/_/g, ' ')}".</div>
+            </td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = list.map(d => {
+            const isPending = d.status === "PENDING_ADMIN_APPROVAL";
+            const isVerified = d.status === "VERIFIED";
+            let statusPill = "";
+            if (isPending) {
+                statusPill = `<span style="background:rgba(245,158,11,0.18); color:#fbbf24; border:1px solid rgba(245,158,11,0.3); padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:700;">Pending Approval</span>`;
+            } else if (isVerified) {
+                statusPill = `<span style="background:rgba(16,185,129,0.18); color:#6ee7b7; border:1px solid rgba(16,185,129,0.3); padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:700;">Verified</span>`;
+            } else {
+                statusPill = `<span style="background:rgba(239,68,68,0.18); color:#fca5a5; border:1px solid rgba(239,68,68,0.3); padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:700;">Rejected</span>`;
+            }
+
+            let actions = "";
+            if (isPending) {
+                actions = `
+                    <button class="btn btn-primary" onclick="approveDoctor('${d.id}', '${escapeHtml(d.full_name)}')" style="padding:4px 12px; font-size:0.75rem; background:#10b981; border-color:#10b981;">✓ Approve</button>
+                    <button class="btn btn-outline" onclick="rejectDoctor('${d.id}', '${escapeHtml(d.full_name)}')" style="padding:4px 10px; font-size:0.75rem; color:#f87171; border-color:rgba(239,68,68,0.4);">✗ Reject</button>
+                `;
+            } else if (isVerified) {
+                actions = `
+                    <button class="btn btn-outline" onclick="suspendDoctor('${d.id}', '${escapeHtml(d.full_name)}')" style="padding:4px 10px; font-size:0.75rem; color:#f87171; border-color:rgba(239,68,68,0.4);">🚫 Suspend</button>
+                `;
+            } else {
+                actions = `<span style="color:#64748b; font-size:0.78rem;">Archived</span>`;
+            }
+
+            const appliedDate = d.created_at ? new Date(d.created_at).toLocaleDateString('en-GB') : "—";
+
+            return `
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <td style="padding:14px 16px;">
+                        <div style="font-weight:700; color:#f8fafc;">Dr. ${escapeHtml(d.full_name.replace(/^Dr\.\s*/i, ''))}</div>
+                        <div style="font-size:0.78rem; color:#94a3b8;">${escapeHtml(d.email)}</div>
+                    </td>
+                    <td style="padding:14px 16px;"><code style="background:rgba(6,182,212,0.1); color:#67e8f9; padding:2px 6px; border-radius:4px; font-size:0.8rem;">${escapeHtml(d.slmc_number)}</code></td>
+                    <td style="padding:14px 16px; font-size:0.8rem; color:#cbd5e1;">${escapeHtml(d.nic || '—')}</td>
+                    <td style="padding:14px 16px; font-size:0.8rem; color:#cbd5e1;">${escapeHtml(d.phone || '—')}</td>
+                    <td style="padding:14px 16px;">${statusPill}</td>
+                    <td style="padding:14px 16px; font-size:0.8rem; color:#94a3b8;">${appliedDate}</td>
+                    <td style="padding:14px 16px; text-align:right;">
+                        <div style="display:inline-flex; gap:6px;">${actions}</div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:#fca5a5;">Network error: ${escapeHtml(err.message)}</td></tr>`;
+    }
+}
+
+function showAdminFeedback(msg, isSuccess = true) {
+    const el = document.getElementById("adm-feedback-alert");
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = "block";
+    el.style.background = isSuccess ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)";
+    el.style.border = isSuccess ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(239,68,68,0.3)";
+    el.style.color = isSuccess ? "#6ee7b7" : "#fca5a5";
+    setTimeout(() => { el.style.display = "none"; }, 4500);
+}
+
+async function approveDoctor(id, name) {
+    if (!confirm(`Confirm approval for Dr. ${name}?\n\nThis will verify their SLMC credentials and grant immediate access to the clinical portal.`)) return;
+    try {
+        const res = await fetch(`/api/admin/registrations/${id}/approve`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${AUTH_TOKEN}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showAdminFeedback(`✅ ${data.message || 'Doctor approved successfully.'}`, true);
+            await loadAdminStats();
+            await loadAdminRegistrations(currentAdminStatusFilter);
+        } else {
+            showAdminFeedback(`❌ Error: ${data.detail || 'Could not approve doctor'}`, false);
+        }
+    } catch (err) {
+        showAdminFeedback(`❌ Network error: ${err.message}`, false);
+    }
+}
+
+async function rejectDoctor(id, name) {
+    const reason = prompt(`Reason for rejecting Dr. ${name}:`, "SLMC registration could not be verified in the medical register.");
+    if (reason === null) return;
+    try {
+        const res = await fetch(`/api/admin/registrations/${id}/reject`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${AUTH_TOKEN}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ reason: reason.trim() || "Verification requirements not met" })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showAdminFeedback(`✅ ${data.message || 'Registration rejected.'}`, true);
+            await loadAdminStats();
+            await loadAdminRegistrations(currentAdminStatusFilter);
+        } else {
+            showAdminFeedback(`❌ Error: ${data.detail || 'Could not reject registration'}`, false);
+        }
+    } catch (err) {
+        showAdminFeedback(`❌ Network error: ${err.message}`, false);
+    }
+}
+
+async function suspendDoctor(id, name) {
+    if (!confirm(`Are you sure you want to suspend Dr. ${name}'s account?\n\nThey will be unable to log in until reinstated.`)) return;
+    try {
+        const res = await fetch(`/api/admin/doctors/${id}/suspend`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${AUTH_TOKEN}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showAdminFeedback(`⚠️ ${data.message || 'Doctor account suspended.'}`, true);
+            await loadAdminStats();
+            await loadAdminRegistrations(currentAdminStatusFilter);
+        } else {
+            showAdminFeedback(`❌ Error: ${data.detail || 'Could not suspend doctor'}`, false);
+        }
+    } catch (err) {
+        showAdminFeedback(`❌ Network error: ${err.message}`, false);
+    }
 }

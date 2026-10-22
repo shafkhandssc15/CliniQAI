@@ -293,7 +293,8 @@
                     localStorage.setItem("cliniq_token", data.access_token);
                     localStorage.setItem("cliniq_doctor", JSON.stringify(data.doctor));
                     showAlert("Login successful! Redirecting...", "success");
-                    setTimeout(() => window.location.href = "/", 800);
+                    const targetUrl = (data.doctor && data.doctor.role === "ADMIN") ? "/admin.html" : "/";
+                    setTimeout(() => window.location.href = targetUrl, 800);
                 } else {
                     const detail = data.detail;
                     const msg = typeof detail === "object" ? detail.message : detail;
