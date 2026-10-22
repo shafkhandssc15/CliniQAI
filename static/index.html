@@ -1111,77 +1111,78 @@
 
         <!-- ─── TAB: ADMIN (DOCTOR APPROVALS & ACCESS CONTROL) ─── -->
         <section id="tab-admin" class="tab-pane">
-            <div class="card glass settings-card">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:12px;">
+            <div class="card glass" style="width: 100%; max-width: 100%; padding: 24px; margin: 0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:16px;">
                     <div>
-                        <h3 style="margin:0; display:flex; align-items:center; gap:8px;">
-                            <span style="color:#f59e0b;">🛡️</span> Doctor Verification & Access Control
+                        <h3 style="margin:0; font-size:1.35rem; font-weight:700; color:#f8fafc; display:flex; align-items:center; gap:10px;">
+                            <span style="display:inline-flex; width:32px; height:32px; border-radius:8px; background:rgba(34,211,238,0.15); color:#22d3ee; align-items:center; justify-content:center; font-size:1rem;">🛡️</span>
+                            Doctor Verification & Access Control
                         </h3>
-                        <p class="card-desc" style="margin:4px 0 0 0;">
-                            Review Sri Lanka Medical Council (SLMC) applications, verify practitioner licenses, and approve or reject clinical access.
+                        <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.875rem;">
+                            Review Sri Lanka Medical Council (SLMC) practitioner registrations, verify licenses, and manage clinical platform access.
                         </p>
                     </div>
-                    <div style="display:flex; gap:8px;">
-                        <button class="btn btn-primary" onclick="loadAdminRegistrations()" type="button" style="padding:6px 14px; font-size:0.8rem;">
-                            🔄 Refresh Queue
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <button class="btn btn-primary" onclick="loadAdminRegistrations()" type="button" style="padding:8px 16px; font-size:0.85rem; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
+                            <span>🔄</span> Refresh Queue
                         </button>
-                        <a href="/admin.html" target="_blank" class="btn btn-outline" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; padding:6px 14px; font-size:0.8rem;">
+                        <a href="/admin.html" target="_blank" class="btn btn-outline" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; padding:8px 16px; font-size:0.85rem; font-weight:600;">
                             <span>Dedicated Console ↗</span>
                         </a>
                     </div>
                 </div>
 
-                <!-- Stats Grid -->
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:1.5rem;">
-                    <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:10px; padding:14px;">
-                        <div style="font-size:0.75rem; text-transform:uppercase; color:#fbbf24; font-weight:600; letter-spacing:0.05em;">Pending Approval</div>
-                        <div style="font-size:1.8rem; font-weight:800; color:#fbbf24; font-family:'Outfit',sans-serif;" id="adm-stat-pending">—</div>
+                <!-- Stats Grid (Full Width 4 Columns) -->
+                <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:1.75rem;">
+                    <div style="background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.25); border-radius:12px; padding:18px;">
+                        <div style="font-size:0.75rem; text-transform:uppercase; color:#fbbf24; font-weight:700; letter-spacing:0.06em; margin-bottom:6px;">Pending Approval</div>
+                        <div style="font-size:2.4rem; font-weight:800; color:#fbbf24; font-family:'Plus Jakarta Sans',sans-serif; line-height:1;" id="adm-stat-pending">—</div>
                     </div>
-                    <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:10px; padding:14px;">
-                        <div style="font-size:0.75rem; text-transform:uppercase; color:#34d399; font-weight:600; letter-spacing:0.05em;">Verified Doctors</div>
-                        <div style="font-size:1.8rem; font-weight:800; color:#34d399; font-family:'Outfit',sans-serif;" id="adm-stat-verified">—</div>
+                    <div style="background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.25); border-radius:12px; padding:18px;">
+                        <div style="font-size:0.75rem; text-transform:uppercase; color:#34d399; font-weight:700; letter-spacing:0.06em; margin-bottom:6px;">Verified Doctors</div>
+                        <div style="font-size:2.4rem; font-weight:800; color:#34d399; font-family:'Plus Jakarta Sans',sans-serif; line-height:1;" id="adm-stat-verified">—</div>
                     </div>
-                    <div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:10px; padding:14px;">
-                        <div style="font-size:0.75rem; text-transform:uppercase; color:#f87171; font-weight:600; letter-spacing:0.05em;">Rejected</div>
-                        <div style="font-size:1.8rem; font-weight:800; color:#f87171; font-family:'Outfit',sans-serif;" id="adm-stat-rejected">—</div>
+                    <div style="background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.25); border-radius:12px; padding:18px;">
+                        <div style="font-size:0.75rem; text-transform:uppercase; color:#f87171; font-weight:700; letter-spacing:0.06em; margin-bottom:6px;">Rejected</div>
+                        <div style="font-size:2.4rem; font-weight:800; color:#f87171; font-family:'Plus Jakarta Sans',sans-serif; line-height:1;" id="adm-stat-rejected">—</div>
                     </div>
-                    <div style="background:rgba(6,182,212,0.08); border:1px solid rgba(6,182,212,0.25); border-radius:10px; padding:14px;">
-                        <div style="font-size:0.75rem; text-transform:uppercase; color:#67e8f9; font-weight:600; letter-spacing:0.05em;">Total Accounts</div>
-                        <div style="font-size:1.8rem; font-weight:800; color:#67e8f9; font-family:'Outfit',sans-serif;" id="adm-stat-total">—</div>
+                    <div style="background:rgba(34,211,238,0.06); border:1px solid rgba(34,211,238,0.25); border-radius:12px; padding:18px;">
+                        <div style="font-size:0.75rem; text-transform:uppercase; color:#22d3ee; font-weight:700; letter-spacing:0.06em; margin-bottom:6px;">Total Accounts</div>
+                        <div style="font-size:2.4rem; font-weight:800; color:#22d3ee; font-family:'Plus Jakarta Sans',sans-serif; line-height:1;" id="adm-stat-total">—</div>
                     </div>
                 </div>
 
                 <!-- Action Feedback Alert -->
-                <div id="adm-feedback-alert" style="display:none; padding:12px 16px; border-radius:8px; margin-bottom:1rem; font-size:0.875rem;"></div>
+                <div id="adm-feedback-alert" style="display:none; padding:14px 18px; border-radius:10px; margin-bottom:1.25rem; font-size:0.9rem;"></div>
 
-                <!-- Filter Tabs -->
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-                    <div style="display:flex; gap:8px;">
-                        <button class="btn btn-sm adm-filter-btn" id="adm-filter-pending" onclick="setAdminFilter('PENDING_ADMIN_APPROVAL', this)" style="background:var(--accent); color:#050d1a; font-weight:700;">Pending Approval</button>
-                        <button class="btn btn-sm adm-filter-btn" id="adm-filter-verified" onclick="setAdminFilter('VERIFIED', this)" style="background:transparent; color:#94a3b8; border:1px solid rgba(255,255,255,0.1);">Verified Doctors</button>
-                        <button class="btn btn-sm adm-filter-btn" id="adm-filter-rejected" onclick="setAdminFilter('REJECTED', this)" style="background:transparent; color:#94a3b8; border:1px solid rgba(255,255,255,0.1);">Rejected</button>
+                <!-- Filter Tabs & Counter -->
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+                    <div style="display:flex; gap:10px;">
+                        <button class="adm-filter-btn" id="adm-filter-pending" onclick="setAdminFilter('PENDING_ADMIN_APPROVAL', this)" style="background:#22d3ee; color:#060b14; font-weight:700; border:none; padding:8px 18px; border-radius:8px; cursor:pointer; font-size:0.85rem; transition:all 0.2s;">Pending Approval</button>
+                        <button class="adm-filter-btn" id="adm-filter-verified" onclick="setAdminFilter('VERIFIED', this)" style="background:rgba(255,255,255,0.06); color:#94a3b8; font-weight:600; border:1px solid rgba(255,255,255,0.12); padding:8px 18px; border-radius:8px; cursor:pointer; font-size:0.85rem; transition:all 0.2s;">Verified Doctors</button>
+                        <button class="adm-filter-btn" id="adm-filter-rejected" onclick="setAdminFilter('REJECTED', this)" style="background:rgba(255,255,255,0.06); color:#94a3b8; font-weight:600; border:1px solid rgba(255,255,255,0.12); padding:8px 18px; border-radius:8px; cursor:pointer; font-size:0.85rem; transition:all 0.2s;">Rejected</button>
                     </div>
-                    <span id="adm-queue-count" style="font-size:0.8rem; color:#94a3b8;">Loading registrations...</span>
+                    <span id="adm-queue-count" style="font-size:0.85rem; color:#94a3b8; font-weight:500;">Loading registrations...</span>
                 </div>
 
                 <!-- Registrations Table -->
-                <div style="overflow-x:auto; border:1px solid rgba(255,255,255,0.08); border-radius:10px;">
-                    <table style="width:100%; border-collapse:collapse; font-size:0.875rem;">
+                <div class="universal-table-container" style="max-height:none; overflow-x:auto; border-radius:10px; border:1px solid var(--border);">
+                    <table class="universal-lab-table" style="width:100%; border-collapse:collapse;">
                         <thead>
-                            <tr style="background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.08); text-align:left;">
-                                <th style="padding:12px 16px; font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Doctor Name & Email</th>
-                                <th style="padding:12px 16px; font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">SLMC No.</th>
-                                <th style="padding:12px 16px; font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">NIC</th>
-                                <th style="padding:12px 16px; font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Contact</th>
-                                <th style="padding:12px 16px; font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Status</th>
-                                <th style="padding:12px 16px; font-size:0.75rem; text-transform:uppercase; color:#94a3b8;">Registered</th>
-                                <th style="padding:12px 16px; font-size:0.75rem; text-transform:uppercase; color:#94a3b8; text-align:right;">Actions</th>
+                            <tr style="border-bottom:1px solid var(--border);">
+                                <th style="padding:14px 18px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); white-space:nowrap;">Doctor Name & Email</th>
+                                <th style="padding:14px 18px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); white-space:nowrap;">SLMC Registration</th>
+                                <th style="padding:14px 18px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); white-space:nowrap;">National ID (NIC)</th>
+                                <th style="padding:14px 18px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); white-space:nowrap;">Phone Contact</th>
+                                <th style="padding:14px 18px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); white-space:nowrap;">Account Status</th>
+                                <th style="padding:14px 18px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); white-space:nowrap;">Application Date</th>
+                                <th style="padding:14px 18px; text-align:right; font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-3); white-space:nowrap;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="adm-registrations-tbody">
                             <tr>
-                                <td colspan="7" style="text-align:center; padding:36px; color:#94a3b8;">
-                                    Loading registrations...
+                                <td colspan="7" style="text-align:center; padding:48px 20px; color:var(--text-3);">
+                                    <div class="spinner" style="margin-right:8px;"></div> Loading registrations...
                                 </td>
                             </tr>
                         </tbody>

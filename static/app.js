@@ -2601,13 +2601,15 @@ async function initAdminApprovals() {
 function setAdminFilter(status, btn) {
     currentAdminStatusFilter = status;
     document.querySelectorAll(".adm-filter-btn").forEach(b => {
-        b.style.background = "transparent";
+        b.style.background = "rgba(255,255,255,0.06)";
         b.style.color = "#94a3b8";
-        b.style.fontWeight = "500";
+        b.style.border = "1px solid rgba(255,255,255,0.12)";
+        b.style.fontWeight = "600";
     });
     if (btn) {
-        btn.style.background = "var(--accent)";
-        btn.style.color = "#050d1a";
+        btn.style.background = "#22d3ee";
+        btn.style.color = "#060b14";
+        btn.style.border = "none";
         btn.style.fontWeight = "700";
     }
     loadAdminRegistrations(status);
@@ -2683,32 +2685,32 @@ async function loadAdminRegistrations(status = currentAdminStatusFilter) {
             let actions = "";
             if (isPending) {
                 actions = `
-                    <button class="btn btn-primary" onclick="approveDoctor('${d.id}', '${escapeHtml(d.full_name)}')" style="padding:4px 12px; font-size:0.75rem; background:#10b981; border-color:#10b981;">✓ Approve</button>
-                    <button class="btn btn-outline" onclick="rejectDoctor('${d.id}', '${escapeHtml(d.full_name)}')" style="padding:4px 10px; font-size:0.75rem; color:#f87171; border-color:rgba(239,68,68,0.4);">✗ Reject</button>
+                    <button onclick="approveDoctor('${d.id}', '${escapeHtml(d.full_name)}')" style="padding:6px 14px; font-size:0.8rem; font-weight:700; background:#10b981; color:white; border:none; border-radius:6px; cursor:pointer; box-shadow:0 0 10px rgba(16,185,129,0.3); transition:all 0.2s;">✓ Approve</button>
+                    <button onclick="rejectDoctor('${d.id}', '${escapeHtml(d.full_name)}')" style="padding:6px 12px; font-size:0.8rem; font-weight:600; background:rgba(239,68,68,0.15); color:#fca5a5; border:1px solid rgba(239,68,68,0.35); border-radius:6px; cursor:pointer; transition:all 0.2s;">✗ Reject</button>
                 `;
             } else if (isVerified) {
                 actions = `
-                    <button class="btn btn-outline" onclick="suspendDoctor('${d.id}', '${escapeHtml(d.full_name)}')" style="padding:4px 10px; font-size:0.75rem; color:#f87171; border-color:rgba(239,68,68,0.4);">🚫 Suspend</button>
+                    <button onclick="suspendDoctor('${d.id}', '${escapeHtml(d.full_name)}')" style="padding:6px 12px; font-size:0.8rem; font-weight:600; background:rgba(239,68,68,0.15); color:#fca5a5; border:1px solid rgba(239,68,68,0.35); border-radius:6px; cursor:pointer; transition:all 0.2s;">🚫 Suspend</button>
                 `;
             } else {
-                actions = `<span style="color:#64748b; font-size:0.78rem;">Archived</span>`;
+                actions = `<span style="color:#64748b; font-size:0.8rem;">Archived</span>`;
             }
 
             const appliedDate = d.created_at ? new Date(d.created_at).toLocaleDateString('en-GB') : "—";
 
             return `
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:14px 16px;">
-                        <div style="font-weight:700; color:#f8fafc;">Dr. ${escapeHtml(d.full_name.replace(/^Dr\.\s*/i, ''))}</div>
-                        <div style="font-size:0.78rem; color:#94a3b8;">${escapeHtml(d.email)}</div>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <td style="padding:14px 18px;">
+                        <div style="font-weight:700; color:#f8fafc; font-size:0.95rem;">Dr. ${escapeHtml(d.full_name.replace(/^Dr\.\s*/i, ''))}</div>
+                        <div style="font-size:0.8rem; color:#94a3b8; margin-top:2px;">${escapeHtml(d.email)}</div>
                     </td>
-                    <td style="padding:14px 16px;"><code style="background:rgba(6,182,212,0.1); color:#67e8f9; padding:2px 6px; border-radius:4px; font-size:0.8rem;">${escapeHtml(d.slmc_number)}</code></td>
-                    <td style="padding:14px 16px; font-size:0.8rem; color:#cbd5e1;">${escapeHtml(d.nic || '—')}</td>
-                    <td style="padding:14px 16px; font-size:0.8rem; color:#cbd5e1;">${escapeHtml(d.phone || '—')}</td>
-                    <td style="padding:14px 16px;">${statusPill}</td>
-                    <td style="padding:14px 16px; font-size:0.8rem; color:#94a3b8;">${appliedDate}</td>
-                    <td style="padding:14px 16px; text-align:right;">
-                        <div style="display:inline-flex; gap:6px;">${actions}</div>
+                    <td style="padding:14px 18px;"><span style="font-family:'JetBrains Mono',monospace; background:rgba(34,211,238,0.12); color:#22d3ee; border:1px solid rgba(34,211,238,0.25); padding:3px 8px; border-radius:6px; font-size:0.82rem; font-weight:600;">${escapeHtml(d.slmc_number)}</span></td>
+                    <td style="padding:14px 18px; font-size:0.85rem; color:#cbd5e1; font-family:'JetBrains Mono',monospace;">${escapeHtml(d.nic || '—')}</td>
+                    <td style="padding:14px 18px; font-size:0.85rem; color:#cbd5e1;">${escapeHtml(d.phone || '—')}</td>
+                    <td style="padding:14px 18px;">${statusPill}</td>
+                    <td style="padding:14px 18px; font-size:0.82rem; color:#94a3b8; white-space:nowrap;">${appliedDate}</td>
+                    <td style="padding:14px 18px; text-align:right; white-space:nowrap;">
+                        <div style="display:inline-flex; gap:8px;">${actions}</div>
                     </td>
                 </tr>
             `;
